@@ -1,23 +1,18 @@
-use axum::{Router, body::Body, response::Response, routing::get};
-use http::StatusCode;
-use std::path::Path;
-use std::convert::Infallible;
-use std::fs::File;
-use std::io::{Read};
+use axum::{Router, response::{Response, Html}, routing::get, extract};
+use http::{StatusCode, header::CONTENT_TYPE};
+use std::{path::PathBuf, convert::Infallible, fs::File, io::{Read}};
+use axum::body::Body;
+use mime_guess::from_path;
 
 pub fn create_app() -> Router {
     Router::new()
         .route("/", get(root))
-        .route("/files/:id", get(move |path| files_id(path)))
+        .route("/files/:id", get(files_id))
 }
 
-async fn files_id(axum::extract::Path(path): axum::extract::Path<String>) -> Result<Response, Infallible> {
-    return download_file(path).await;
-}
-
-async fn download_file(id: String) -> Result<Response<Body>, Infallible> {
+async fn files_id(extract::Path(id): extract::Path<String>) -> Result<Response<Body>, Infallible> {
     let file_path = format!("files/{}", id);
-    let file_path = Path::new(&file_path);
+    let file_path = PathBuf::from(&file_path);
 
     if !file_path.exists() {
         return Ok(Response::builder()
@@ -45,18 +40,21 @@ async fn download_file(id: String) -> Result<Response<Body>, Infallible> {
             .unwrap());
     }
 
-    let content_type = mime_guess::from_path(&file_path)
+    let content_type = from_path(&file_path)
         .first_or_octet_stream()
         .to_string();
 
+    let file_name = file_path.file_name().unwrap_or_default().to_string_lossy();
+    let content_disposition = format!("attachment; filename=\"{}\"", file_name);
+
     Ok(Response::builder()
         .status(StatusCode::OK)
-        .header("Content-Type", content_type)
-        .header("Content-Disposition", format!("attachment; filename=\"{}\"", file_path.file_name().unwrap_or_default().to_string_lossy()))
+        .header(CONTENT_TYPE, content_type)
+        .header("Content-Disposition", content_disposition)
         .body(buffer.into())
         .unwrap())
 }
 
-async fn root() -> &'static str {
-    "Server working"
+async fn root() -> Html<&'static str> {
+    Html("<h1>Server working</h1>")
 }

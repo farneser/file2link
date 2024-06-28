@@ -74,7 +74,13 @@ async fn handle_file(
 
         let uuid = Uuid::new_v4();
 
-        let final_file_name = match file_name {
+        let name = file_name.map(|name| {
+            let name = name.to_string_lossy();
+
+            name.replace(' ', "_")
+        });
+
+        let final_file_name = match name {
             Some(name) => format!("files/{}_{}", uuid, name),
             None => format!("files/{}_{}", uuid, utils::get_file_name_from_path(&file_info.path).unwrap()),
         };
