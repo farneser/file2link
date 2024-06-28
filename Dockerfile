@@ -16,8 +16,8 @@ COPY --from=build /app/target/release/file2link /app/file2link
 
 RUN chmod +x /app/file2link
 
-ENV PORT=8080
+ENV SERVER_PORT ${SERVER_PORT}
 
-EXPOSE ${PORT}
+EXPOSE ${SERVER_PORT}
 
 CMD ["/app/file2link"]
