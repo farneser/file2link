@@ -3,20 +3,25 @@ version: '3.7'
 services:
   app:
     build: .
+    depends_on:
+      - nginx
+    restart: unless-stopped
     ports:
       - "8080:8081"
-    env_file:
-      - .env
     volumes:
       - ./files:/files
+    env_file:
+      - .env
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
-    restart: always
+    restart: unless-stopped
+    volumes:
+      - ./telegram-bot-api-data:/var/lib/telegram-bot-api
     env_file:
       - .env
   nginx:
     image: nginx:1.19-alpine
-    restart: always
+    restart: unless-stopped
     depends_on:
       - telegram-bot-api
     volumes:

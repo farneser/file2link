@@ -75,7 +75,7 @@ async fn handle_file(
         let uuid = Uuid::new_v4();
 
         let name = file_name.map(|name| {
-            let name = name.to_string_lossy();
+            let name = name.to_string();
 
             name.replace(' ', "_")
         });
