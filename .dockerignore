@@ -1,0 +1,4 @@
+/target
+/files
+.env.*
+/.idea

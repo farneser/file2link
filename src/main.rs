@@ -1,5 +1,5 @@
 use std::convert::Infallible;
-use std::env;
+use std::{env, process};
 use std::fs::File;
 use std::io::{self, Read, Write};
 use std::path::Path;
@@ -19,9 +19,16 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     pretty_env_logger::init();
-    load_env_file();
+    load_env();
 
-    let token = fetch_bot_token();
+    let token = match fetch_bot_token() {
+        Ok(token) => token,
+        Err(e) => {
+            eprintln!("Failed to fetch bot token: {}", e);
+            process::exit(1);
+        }
+    };
+
     let server_port = fetch_server_port();
 
     let bot = Bot::new(token);
@@ -102,7 +109,7 @@ async fn root() -> &'static str {
     "Hello, World!"
 }
 
-fn load_env_file() {
+fn load_env() {
     let dotenv_path = ".env";
 
     if Path::new(dotenv_path).exists() {
@@ -114,10 +121,13 @@ fn fetch_env_variable(var: &str) -> Option<String> {
     env::var(var).ok()
 }
 
-fn fetch_bot_token() -> String {
-    fetch_env_variable("BOT_TOKEN").unwrap_or_else(|| {
-        panic!("Error: environment variable 'BOT_TOKEN' is not set");
-    })
+fn fetch_bot_token() -> Result<String, String> {
+    let val = fetch_env_variable("BOT_TOKEN");
+
+    match val {
+        None => Err("environment variable 'BOT_TOKEN' is not set".to_owned()),
+        Some(_) => Ok(val.unwrap())
+    }
 }
 
 fn fetch_server_port() -> i16 {
@@ -126,28 +136,83 @@ fn fetch_server_port() -> i16 {
         .unwrap_or(8080)
 }
 
+fn fetch_domain() -> String {
+    let default_port = fetch_server_port();
+
+    let default_url = format!("http://localhost:{default_port}");
+
+    let domain = fetch_env_variable("APP_DOMAIN").unwrap_or_else(|| default_url);
+
+    if domain.ends_with('/') {
+        domain
+    } else {
+        format!("{domain}/")
+    }
+}
+
+
 async fn process_message(bot: Bot, msg: Message) -> Result<(), Box<dyn std::error::Error>> {
     if let Some(document) = msg.document() {
-        if let Some(file_name) = &document.file_name {
-            println!("Received file: {:?}", file_name);
-
-            let file_info = bot.get_file(document.file.id.clone()).await?;
-            let file_url = format!("https://api.telegram.org/file/bot{}/{}", bot.token(), file_info.path);
-
-            let bytes = fetch_file_bytes(&file_url).await?;
-            let uuid = Uuid::new_v4();
-            let final_file_name = format!("files/{}_{}", uuid, file_name);
-
-            create_directory("files").expect("Failed to create directory 'files'");
-            save_file(&final_file_name, &bytes)?;
-
-            println!("File saved: {:?}", file_name);
-
-            bot.send_message(msg.chat.id, format!("http://localhost:3000/{final_file_name}")).await?;
-        }
+        handle_file(&bot, &msg, document.file.id.clone(), document.file_name.as_ref()).await?;
+    } else if let Some(photo) = msg.photo().and_then(|p| p.last()) {
+        handle_file(&bot, &msg, photo.file.id.clone(), None).await?;
+    } else if let Some(video) = msg.video() {
+        handle_file(&bot, &msg, video.file.id.clone(), video.file_name.as_ref()).await?;
+    } else if let Some(animation) = msg.animation() {
+        handle_file(&bot, &msg, animation.file.id.clone(), animation.file_name.as_ref()).await?;
     }
 
     Ok(())
+}
+
+async fn handle_file(
+    bot: &Bot,
+    msg: &Message,
+    file_id: String,
+    file_name: Option<&String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    bot.send_message(msg.chat.id, "Starting file downloading").await?;
+
+    let file_info = bot.get_file(file_id).await.unwrap();
+
+    let file_url = format!("https://api.telegram.org/file/bot{}/{}", bot.token(), file_info.path);
+
+    let bytes = fetch_file_bytes(&file_url).await?;
+    let uuid = Uuid::new_v4();
+
+    let final_file_name = match file_name {
+        Some(name) => format!("files/{}_{}", uuid, name),
+        None => format!("files/{}_{}", uuid, get_file_name_from_path(&file_info.path).unwrap()),
+    };
+
+    create_directory("files").await.expect("Failed to create directory 'files'");
+    save_file(&final_file_name, &bytes)?;
+
+    let final_size = get_file_size(&final_file_name).await?;
+
+    println!("File saved: {:?}", final_file_name);
+
+    bot.send_message(
+        msg.chat.id,
+        format!(
+            "Downloaded. Size: {} bites\n{}{}",
+            final_size.to_string(),
+            fetch_domain(),
+            final_file_name
+        ),
+    ).await?;
+
+    Ok(())
+}
+
+fn get_file_name_from_path(path: &str) -> Option<&str> {
+    Path::new(path).file_name()?.to_str()
+}
+
+async fn get_file_size(path: &str) -> io::Result<u64> {
+    let metadata = fs::metadata(path).await?;
+
+    Ok(metadata.len())
 }
 
 async fn fetch_file_bytes(url: &str) -> Result<Vec<u8>, reqwest::Error> {
@@ -158,8 +223,8 @@ async fn fetch_file_bytes(url: &str) -> Result<Vec<u8>, reqwest::Error> {
     Ok(bytes.to_vec())
 }
 
-fn create_directory(dir_name: &str) -> io::Result<()> {
-    fs::create_dir_all(dir_name);
+async fn create_directory(dir_name: &str) -> io::Result<()> {
+    fs::create_dir_all(dir_name).await?;
 
     Ok(())
 }
