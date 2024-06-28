@@ -7,13 +7,13 @@ services:
       - "8080:8080"
     env_file:
       - .env
+    volumes:
+      - ./files:/files
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
     restart: always
     env_file:
       - .env
-    volumes:
-      - ./telegram-bot-api-data:/var/lib/telegram-bot-api
   nginx:
     image: nginx:1.19-alpine
     restart: always
