@@ -2,21 +2,26 @@ version: '3.7'
 
 services:
   app:
-    env_file:
-      - .env
     build: .
     ports:
       - "8080:8080"
-#    command: sleep infinity
+    env_file:
+      - .env
   telegram-bot-api:
     image: aiogram/telegram-bot-api:latest
-    environment:
-      TELEGRAM_API_ID: "1234567"
-      TELEGRAM_API_HASH: "abcdefghijklmnopqrstuvwxyz0123456789"
+    restart: always
+    env_file:
+      - .env
     volumes:
-      - telegram-bot-api-data:/var/lib/telegram-bot-api
+      - ./telegram-bot-api-data:/var/lib/telegram-bot-api
+  nginx:
+    image: nginx:1.19-alpine
+    restart: always
+    depends_on:
+      - telegram-bot-api
+    volumes:
+      - ./telegram-bot-api-data:/var/lib/telegram-bot-api
+      - ./nginx:/etc/nginx/conf.d/
     ports:
-      - "8081:8081"
+      - "8088:80"
 
-volumes:
-  telegram-bot-api-data:

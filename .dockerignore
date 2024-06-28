@@ -1,4 +1,6 @@
 /target
 /files
-.env.*
+.env
 /.idea
+/telegram-bot-api-data
+/nginx

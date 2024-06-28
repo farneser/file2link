@@ -2,3 +2,5 @@
 /files
 .env
 /.idea
+/telegram-bot-api-data
+/nginx

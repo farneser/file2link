@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::{env, process};
 use std::fs::File;
-use std::io::{self, Read, Write};
+use std::io::{self, Read};
 use std::path::Path;
 
 use axum::body::Body;
@@ -10,8 +10,9 @@ use axum::Router;
 use axum::routing::get;
 use dotenv::dotenv;
 use http::StatusCode;
-use reqwest::Client;
+use reqwest::{Url};
 use teloxide::{Bot, prelude::*};
+use teloxide::net::Download;
 use tokio::{fs};
 use tokio::net::TcpListener;
 use uuid::Uuid;
@@ -21,17 +22,9 @@ async fn main() {
     pretty_env_logger::init();
     load_env();
 
-    let token = match fetch_bot_token() {
-        Ok(token) => token,
-        Err(e) => {
-            eprintln!("Failed to fetch bot token: {}", e);
-            process::exit(1);
-        }
-    };
-
     let server_port = fetch_server_port();
 
-    let bot = Bot::new(token);
+    let bot = get_bot().unwrap();
 
     let bot_task = tokio::spawn(async move {
         teloxide::repl(bot, |bot: Bot, msg: Message| async move {
@@ -57,6 +50,36 @@ async fn main() {
         _ = bot_task => {},
         _ = server_task => {},
     }
+}
+
+
+fn get_bot() -> Option<Bot> {
+    let token = match fetch_bot_token() {
+        Ok(token) => token,
+        Err(e) => {
+            eprintln!("Failed to fetch bot token: {}", e);
+            process::exit(1);
+        }
+    };
+
+    let api_url = fetch_telegram_api();
+
+    let url = match Url::parse(&api_url) {
+        Ok(url) => Some(url),
+        Err(e) => {
+            eprintln!("Failed to parse API_URL: {}", e);
+            return None;
+        }
+    };
+
+    let mut bot = Bot::new(token);
+
+    if let Some(url) = url {
+        println!("{}", url.to_string().to_owned());
+        bot = bot.set_api_url(url);
+    }
+
+    Some(bot)
 }
 
 async fn files_id(axum::extract::Path(path): axum::extract::Path<String>) -> Result<Response, Infallible> {
@@ -173,11 +196,10 @@ async fn handle_file(
 ) -> Result<(), Box<dyn std::error::Error>> {
     bot.send_message(msg.chat.id, "Starting file downloading").await?;
 
+    println!("{file_id}");
+
     let file_info = bot.get_file(file_id).await.unwrap();
 
-    let file_url = format!("https://api.telegram.org/file/bot{}/{}", bot.token(), file_info.path);
-
-    let bytes = fetch_file_bytes(&file_url).await?;
     let uuid = Uuid::new_v4();
 
     let final_file_name = match file_name {
@@ -185,8 +207,13 @@ async fn handle_file(
         None => format!("files/{}_{}", uuid, get_file_name_from_path(&file_info.path).unwrap()),
     };
 
+    println!("{}", file_info.path);
+
     create_directory("files").await.expect("Failed to create directory 'files'");
-    save_file(&final_file_name, &bytes)?;
+
+    let mut dst = fs::File::create(final_file_name.clone()).await?;
+
+    bot.download_file(&get_folder_and_file_name(&file_info.path).unwrap(), &mut dst).await?;
 
     let final_size = get_file_size(&final_file_name).await?;
 
@@ -195,7 +222,7 @@ async fn handle_file(
     bot.send_message(
         msg.chat.id,
         format!(
-            "Downloaded. Size: {} bites\n{}{}",
+            "Downloaded. Size: {} bytes\n{}{}",
             final_size.to_string(),
             fetch_domain(),
             final_file_name
@@ -203,6 +230,13 @@ async fn handle_file(
     ).await?;
 
     Ok(())
+}
+
+fn fetch_telegram_api() -> String {
+    fetch_env_variable("TELEGRAM_API_URL").unwrap_or_else(|| {
+        println!("API_URL environment variable is not set");
+        "https://api.telegram.org".to_owned()
+    })
 }
 
 fn get_file_name_from_path(path: &str) -> Option<&str> {
@@ -215,24 +249,18 @@ async fn get_file_size(path: &str) -> io::Result<u64> {
     Ok(metadata.len())
 }
 
-async fn fetch_file_bytes(url: &str) -> Result<Vec<u8>, reqwest::Error> {
-    let client = Client::new();
-    let response = client.get(url).send().await?;
-    let bytes = response.bytes().await?;
-
-    Ok(bytes.to_vec())
-}
-
 async fn create_directory(dir_name: &str) -> io::Result<()> {
     fs::create_dir_all(dir_name).await?;
 
     Ok(())
 }
 
-fn save_file(file_path: &str, bytes: &[u8]) -> io::Result<()> {
-    let mut file = File::create(file_path)?;
+fn get_folder_and_file_name(path: &str) -> Option<String> {
+    let path = Path::new(path);
 
-    file.write_all(bytes)?;
+    let parent_dir = path.parent()?.file_name()?.to_string_lossy().into_owned();
 
-    Ok(())
+    let file_name = path.file_name()?.to_string_lossy().into_owned();
+
+    Some(format!("{}/{}", parent_dir, file_name))
 }

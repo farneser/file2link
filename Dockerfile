@@ -10,14 +10,14 @@ COPY . .
 
 RUN cargo build --release
 
-FROM alpine:latest as run
+FROM ubuntu as run
 
 COPY --from=build /app/target/release/file2link /app/file2link
 
-RUN chmod +x /file2link
+RUN chmod +x /app/file2link
 
 ENV PORT=8080
 
 EXPOSE ${PORT}
 
-CMD ["/file2link"]
+CMD ["/app/file2link"]
