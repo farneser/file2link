@@ -7,6 +7,7 @@ use teloxide::Bot;
 use teloxide::prelude::Message;
 use tokio::net::TcpListener;
 use tokio::spawn;
+use tokio::signal;
 
 #[tokio::main]
 async fn main() {
@@ -16,11 +17,10 @@ async fn main() {
     let server_port = utils::fetch_server_port();
 
     let bot = bot::get_bot().unwrap();
-    let bot_arc = Arc::new(bot.clone());
 
     let bot_task = spawn(async move {
-        teloxide::repl(bot_arc, |bot: Bot, msg: Message| async move {
-            bot::process_message(Arc::new(bot), msg).await.expect("TODO: panic message");
+        teloxide::repl(bot, |bot: Bot, msg: Message| async move {
+            bot::process_message(Arc::new(bot), msg).await.expect("Fail: process message");
             Ok(())
         })
             .await;
@@ -35,8 +35,14 @@ async fn main() {
         axum::serve(listener, app).await.unwrap();
     });
 
+    let ctrl_c_task = spawn(async {
+        signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+        println!("\n\nReceived Ctrl+C, shutting down...");
+    });
+
     tokio::select! {
         _ = bot_task => {},
         _ = server_task => {},
+        _ = ctrl_c_task => {},
     }
 }
