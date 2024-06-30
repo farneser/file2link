@@ -22,6 +22,99 @@ receive a download link. Use it for file sharing or for quick file transfers to 
 
 ## 🧩 **Installation and Setup**
 
+### **Set Up Environment Variables**
+
+Create a `.env` file in the root directory based on the `.env.example` file and add the following variables:
+
+   ```text
+   # application
+   BOT_TOKEN=123456789:abcdefghijklmnop
+   SERVER_PORT=8081
+   APP_DOMAIN=http://localhost:8081
+   TELEGRAM_API_URL=http://nginx:80
+   RUST_LOG=info
+   ENABLE_FILES_ROUTE=false
+   
+   # telegram bot api server
+   TELEGRAM_API_ID=1234567
+   TELEGRAM_API_HASH=abcdefghijklmnopqrstuvwxyz0123456789
+   TELEGRAM_LOCAL=true
+   ```
+
+Here's a breakdown of each environment variable:
+
+- **`BOT_TOKEN`**: Your Telegram bot token, which you can obtain
+  from [BotFather](https://core.telegram.org/bots#botfather).
+
+  Example:
+  ```text
+  BOT_TOKEN=123456789:abcdefghijklmnop
+  ```
+
+- **`SERVER_PORT`**: The port on which the application will run.
+
+  Default:
+  ```text
+  SERVER_PORT=8080
+  ```
+
+- **`APP_DOMAIN`**: The domain or IP address where your application is accessible.
+
+  Default:
+  ```text
+  APP_DOMAIN=http://localhost:8080
+  ```
+
+  Example:
+  ```text
+  APP_DOMAIN=https://domain.com
+  ```
+
+- **`TELEGRAM_API_URL`**: The URL of the Telegram API server. If you are running the API server in Docker, it’s
+  usually the name of the Docker service.
+
+  Default:
+  ```text
+  TELEGRAM_API_URL=https://api.telegram.org
+  ```
+
+- **`RUST_LOG`**: Log level for the Rust application.
+
+  Default:
+  ```text
+  RUST_LOG=info
+  ```
+
+- **`ENABLE_FILES_ROUTE`**: Enable /files folder to get list.
+
+  Default:
+  ```text
+  ENABLE_FILES_ROUTE=false
+  ```
+
+- **`TELEGRAM_API_ID`**: Your Telegram API ID, which you can obtain
+  from [my.telegram.org](https://my.telegram.org/).
+
+  Example:
+  ```text
+  TELEGRAM_API_ID=1234567
+  ```
+
+- **`TELEGRAM_API_HASH`**: Your Telegram API hash, which you can obtain
+  from [my.telegram.org](https://my.telegram.org/).
+
+  Example:
+  ```text
+  TELEGRAM_API_HASH=abcdefghijklmnopqrstuvwxyz0123456789
+  ```
+
+- **`TELEGRAM_LOCAL`**: Set to `true` to indicate that the bot is running on a local environment.
+
+  Default:
+  ```text
+  TELEGRAM_LOCAL=true
+  ```
+
 ### 🐳 Run Using Docker Engine
 
 **Files uploaded via the bot are stored in the `/files` directory within the Docker container.** The `volumes` section
@@ -39,91 +132,7 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
    cd file2link
    ```
 
-2. **Set Up Environment Variables**
-
-   Create a `.env` file in the root directory based on the `.env.example` file and add the following variables:
-
-   ```text
-   # application
-   BOT_TOKEN=123456789:abcdefghijklmnop
-   SERVER_PORT=8081
-   APP_DOMAIN=http://localhost:8081
-   TELEGRAM_API_URL=http://nginx:80
-   RUST_LOG=info
-   
-   # telegram bot api server
-   TELEGRAM_API_ID=1234567
-   TELEGRAM_API_HASH=abcdefghijklmnopqrstuvwxyz0123456789
-   TELEGRAM_LOCAL=true
-   ```
-   Here's a breakdown of each environment variable:
-
-    - **`BOT_TOKEN`**: Your Telegram bot token, which you can obtain
-      from [BotFather](https://core.telegram.org/bots#botfather).
-
-      Example:
-      ```text
-      BOT_TOKEN=123456789:abcdefghijklmnop
-      ```
-
-    - **`SERVER_PORT`**: The port on which the application will run.
-
-      Default:
-      ```text
-      SERVER_PORT=8080
-      ```
-
-    - **`APP_DOMAIN`**: The domain or IP address where your application is accessible.
-
-      Default:
-      ```text
-      APP_DOMAIN=http://localhost:8080
-      ```
-
-      Example:
-      ```text
-      APP_DOMAIN=https://domain.com
-      ```
-
-    - **`TELEGRAM_API_URL`**: The URL of the Telegram API server. If you are running the API server in Docker, it’s
-      usually the name of the Docker service.
-
-      Default:
-      ```text
-      TELEGRAM_API_URL=https://api.telegram.org
-      ```
-
-    - **`RUST_LOG`**: Log level for the Rust application.
-
-      Default:
-      ```text
-      RUST_LOG=info
-      ```
-
-    - **`TELEGRAM_API_ID`**: Your Telegram API ID, which you can obtain
-      from [my.telegram.org](https://my.telegram.org/).
-
-      Example:
-      ```text
-      TELEGRAM_API_ID=1234567
-      ```
-
-    - **`TELEGRAM_API_HASH`**: Your Telegram API hash, which you can obtain
-      from [my.telegram.org](https://my.telegram.org/).
-
-      Example:
-      ```text
-      TELEGRAM_API_HASH=abcdefghijklmnopqrstuvwxyz0123456789
-      ```
-
-    - **`TELEGRAM_LOCAL`**: Set to `true` to indicate that the bot is running on a local environment.
-
-      Default:
-      ```text
-      TELEGRAM_LOCAL=true
-      ```
-
-3. **Build the Docker Image**
+2. **Build the Docker Image**
 
    Build the Docker image for the bot:
 
@@ -131,12 +140,12 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
    docker compose build 
    ```
 
-4. **Run the Docker Container**
+3. **Run the Docker Container**
 
    Run the Docker container with the environment variables:
 
    ```bash
-   docker compose run
+   docker compose up
    ```
 
    Make sure to replace `/path/to/store/files` with the path you used in the `.env` file for file storage.
@@ -146,3 +155,29 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
 **File2Link** – The perfect solution for easy and efficient file management!
 
 🌟 Try it out now and see how easy file handling can be! 🌟
+
+#### 🚀 Local Development
+
+For local development or testing, you can run **FileShareBot** without Docker Compose. Here’s how you can do it:
+
+1. **Install Rust**
+
+   Ensure you have [Rust](https://www.rust-lang.org/) installed on your machine. You can install it from
+   the [official website](https://www.rust-lang.org/tools/install).
+
+2. **Build and Run the Application**
+
+   Build and run the application using `cargo` commands:
+
+   ```bash
+   cargo build
+   cargo run
+   ```
+
+    - By default, the bot will listen on `http://localhost:8080`.
+
+3. **Access the Application**
+
+    - **File2Link** will be accessible at `http://localhost:8080` for local development.
+
+   **Note:** For local testing, the `./files` directory will be relative to your project’s root directory.

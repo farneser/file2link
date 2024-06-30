@@ -67,6 +67,17 @@ pub fn fetch_telegram_api() -> String {
     })
 }
 
+pub fn fetch_enable_files_route() -> bool {
+    fetch_env_variable("ENABLE_FILES_ROUTE")
+        .unwrap_or_else(|| {
+            warn!("ENABLE_FILES_ROUTE environment variable is not set. Defaulting to false.");
+            "false".to_owned()
+        })
+        .parse()
+        .unwrap_or(false)
+}
+
+
 pub fn get_file_name_from_path(path: &str) -> Option<&str> {
     Path::new(path).file_name()?.to_str()
 }
