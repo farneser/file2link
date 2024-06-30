@@ -1,15 +1,30 @@
 use std::env;
-use std::path::Path;
-use dotenv::dotenv;
-use tokio::fs;
 use std::io;
+use std::path::Path;
+
+use dotenv::dotenv;
+use log::{info, warn};
+use tokio::fs;
 
 pub fn load_env() {
+    fn load_log_level() {
+        let default_log_level = "info";
+        let log_level = env::var("RUST_LOG").unwrap_or_else(|_| default_log_level.to_string());
+
+        env::set_var("RUST_LOG", log_level);
+    }
+
     let dotenv_path = ".env";
 
     if Path::new(dotenv_path).exists() {
         dotenv().expect("Failed to read '.env' file");
+
+        info!("Successfully loaded .env file");
+    } else {
+        warn!("Failed to find .env file. Using system environment variables instead.");
     }
+
+    load_log_level();
 }
 
 pub fn fetch_env_variable(var: &str) -> Option<String> {

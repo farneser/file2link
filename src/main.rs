@@ -1,22 +1,30 @@
+use std::sync::Arc;
+
+use log::info;
+use teloxide::Bot;
+use teloxide::prelude::Message;
+use tokio::net::TcpListener;
+use tokio::signal;
+use tokio::spawn;
+use tokio::sync::{mpsc, Mutex};
+
+use crate::bot::FileQueueType;
+
 mod bot;
 mod server;
 mod utils;
 
-use std::sync::Arc;
-use teloxide::Bot;
-use teloxide::prelude::Message;
-use tokio::net::TcpListener;
-use tokio::spawn;
-use tokio::signal;
-use tokio::sync::{mpsc, Mutex};
-use crate::bot::FileQueueType;
-
 #[tokio::main]
 async fn main() {
-    pretty_env_logger::init();
     utils::load_env();
 
+    pretty_env_logger::init();
+
+    info!("Starting up...");
+
     let server_port = utils::fetch_server_port();
+
+    info!("Server port: {}", server_port);
 
     let bot = bot::get_bot().unwrap();
 
@@ -66,7 +74,7 @@ async fn main() {
 
     let ctrl_c_task = spawn(async {
         signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
-        println!("\n\nReceived Ctrl+C, shutting down...");
+        info!("\n\nReceived Ctrl+C, shutting down...");
     });
 
     tokio::select! {
