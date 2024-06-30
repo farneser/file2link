@@ -56,5 +56,8 @@ async fn files_id(extract::Path(id): extract::Path<String>) -> Result<Response<B
 }
 
 async fn root() -> Html<&'static str> {
-    Html("<h1>Server working</h1>")
+    Html("\
+    <h1>Server working</h1>\
+    <div><a href=\"https://github.com/farneser/file2link\">GitHub</a></div>\
+    ")
 }

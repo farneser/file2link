@@ -4,6 +4,7 @@ use std::sync::Arc;
 use reqwest::Url;
 use teloxide::{Bot, prelude::*};
 use teloxide::net::Download;
+use teloxide::types::ParseMode;
 use tokio::fs;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
@@ -42,7 +43,12 @@ pub fn get_bot() -> Option<Bot> {
     Some(bot)
 }
 
-pub async fn process_message(bot: Arc<Bot>, msg: Message, file_queue: Arc<Mutex<Vec<(Arc<Message>, String, Option<String>)>>>, tx: Sender<()>) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn process_message(
+    bot: Arc<Bot>,
+    msg: Message,
+    file_queue: FileQueueType,
+    tx: Sender<()>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let msg_copy = Arc::new(msg);
 
     if let Some(document) = msg_copy.clone().document() {
@@ -73,7 +79,8 @@ async fn handle_file(
 
         let position = queue.len();
 
-        bot.send_message(msg.chat.id, format!("Queue position: {}", position)).await?;
+        bot.send_message(msg.chat.id, format!("Queue position: {}", position))
+            .reply_to_message_id(msg.id).await?;
     }
 
     tx.send(()).await?;
@@ -113,9 +120,8 @@ async fn download_and_process_file(
     file_id: String,
     file_name: Option<String>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    bot.send_message(msg.chat.id, "Starting file downloading").await?;
-
-    println!("{file_id}");
+    bot.send_message(msg.chat.id, "Starting file downloading")
+        .reply_to_message_id(msg.id).await?;
 
     utils::create_directory("files").await.expect("Failed to create directory 'files'");
 
@@ -145,12 +151,16 @@ async fn download_and_process_file(
                 bot.send_message(
                     msg.chat.id,
                     format!(
-                        "Downloaded. Size: {} bytes\n\n{}{}",
+                        "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
                         final_size,
+                        utils::fetch_domain(),
+                        final_file_name,
                         utils::fetch_domain(),
                         final_file_name
                     ),
-                ).await.expect("Failed to send message");
+                ).parse_mode(ParseMode::Html)
+                    .reply_to_message_id(msg.id).await
+                    .expect("Failed to send message");
 
                 Ok(())
             } else {
