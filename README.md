@@ -148,7 +148,9 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
    docker compose up
    ```
 
-   Make sure to replace `/path/to/store/files` with the path you used in the `.env` file for file storage.
+4. **Access the Application**
+
+    - **File2Link** will be accessible at `http://localhost:8080`.
 
 ---
 
