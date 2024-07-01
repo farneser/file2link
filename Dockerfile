@@ -4,7 +4,7 @@ RUN apt-get update && apt-get install -y \
     musl-tools \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /app
+WORKDIR /build
 
 COPY . .
 
@@ -12,7 +12,9 @@ RUN cargo build --release
 
 FROM ubuntu as run
 
-COPY --from=build /app/target/release/file2link /app/file2link
+WORKDIR /app
+
+COPY --from=build /build/target/release/file2link /app/file2link
 
 RUN chmod +x /app/file2link
 

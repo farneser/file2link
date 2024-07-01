@@ -117,9 +117,11 @@ Here's a breakdown of each environment variable:
 
 ### 🐳 Run Using Docker Engine
 
-**Files uploaded via the bot are stored in the `/files` directory within the Docker container.** The `volumes` section
+**Files uploaded via the bot are stored in the `/app/files` directory within the Docker container.** The `volumes`
+section
 in the `docker-compose.yml` file maps this directory to `/path/to/store/files` on your host machine. This means you can
-access the files through `/path/to/store/files` on your host machine.
+access the files through `/path/to/store/files` on your host machine. Also, permissions file location is
+a `/app/config/permissions.json`.
 
 You can easily run **File2Link** using Docker. Follow these steps to get started:
 
@@ -183,3 +185,112 @@ For local development or testing, you can run **FileShareBot** without Docker Co
     - **File2Link** will be accessible at `http://localhost:8080` for local development.
 
    **Note:** For local testing, the `./files` directory will be relative to your project’s root directory.
+
+### 🛡️ **Permissions**
+
+Permissions in the application are managed through a JSON configuration file that sets access rules for all users or
+specific users regarding different chats.
+
+#### 🔧 **Configuration File Format**
+
+The configuration file located at `config/permissions.json` and use the following format:
+
+```json
+{
+  "allow_all": {
+    "users": [
+      "STRING_OR_LIST"
+    ]
+  },
+  "chats": {
+    "CHAT_ID": {
+      "users": [
+        "STRING_OR_LIST"
+      ]
+    }
+  }
+}
+```
+
+#### **Configuration File Fields**
+
+- **`allow_all`**: Defines access rules for all users. Possible values:
+    - **`"*"`**: Access is granted to all users.
+    - **Object with list of users**: Access is granted only to the specified users.
+
+- **`chats`**: A dictionary where the key is the chat ID and the value is the access rule for that specific chat. Values
+  can be:
+    - **`"*"`**: Access is granted to all users.
+    - **Object with list of users**: Access is granted only to the specified users.
+
+#### 🔑 **Configuration Examples**
+
+##### 1. **Grant Access to All Users for All Chats**
+
+```json
+{
+  "allow_all": "*",
+  "chats": {}
+}
+```
+
+In this example, **all users** have access to all chats because `allow_all` is set to `"*"`.
+
+##### 2. **Grant Access to Only Specific Users for All Chats**
+
+```json 
+{
+  "allow_all": {
+    "users": [
+      "1234567",
+      "2345678"
+    ]
+  },
+  "chats": {}
+}
+```
+
+This example grants access to **all chats** only to `1234567` and `2345678`.
+
+##### 3. **Grant Access to All Users for General Chats and Set Special Permissions for Specific Chats**
+
+```json
+{
+  "allow_all": "4567890",
+  "chats": {
+    "chat1": {
+      "users": [
+        "1234567",
+        "2345678"
+      ]
+    },
+    "chat2": "*"
+  }
+}
+```
+
+In this example:
+
+- **User `4567890`** have access to all chats due to `allow_all` being `"4567890"` for general access.
+- **For `chat1`**, access is granted only to `1234567` and `2345678`.
+- **For `chat2`**, access is granted to all users (just like the other chats).
+
+##### 4. **Restrict Access for All Users and Set Special Permissions**
+
+```json
+{
+  "allow_all": "31235425",
+  "chats": {
+    "chat3": {
+      "users": [
+        "43243243"
+      ]
+    }
+  }
+}
+```
+
+In this example:
+
+- **Only `31235425`** has access to all chats.
+- **Only `43243243`** has access to `chat3`.

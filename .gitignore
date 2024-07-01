@@ -4,4 +4,4 @@
 /.idea
 /telegram-bot-api-data
 /nginx
-permissions.json
+/config

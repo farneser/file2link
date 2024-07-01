@@ -5,7 +5,7 @@ use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use tokio::fs;
 
-const CONFIG_PATH: &str = "permissions.json";
+const CONFIG_PATH: &str = "config/permissions.json";
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(untagged)]
@@ -103,6 +103,15 @@ pub async fn load_config() -> Result<PermissionsConfig, Box<dyn Error>> {
 }
 
 pub async fn save_config(config: &PermissionsConfig) -> Result<(), Box<dyn Error>> {
+    if let Some(path) = CONFIG_PATH.rsplit_once('/') {
+        let dir_path = path.0;
+        if !dir_path.is_empty() {
+            fs::create_dir_all(dir_path).await?;
+
+            debug!("Created directory structure '{}'", dir_path);
+        }
+    }
+
     let data = serde_json::to_string_pretty(config)
         .expect("Failed to serialize config");
     fs::write(CONFIG_PATH, data).await?;
