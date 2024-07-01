@@ -345,6 +345,7 @@ dependencies = [
  "mime_guess",
  "pretty_env_logger",
  "reqwest 0.12.5",
+ "serde",
  "serde_json",
  "teloxide",
  "tokio",
