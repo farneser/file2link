@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
-use log::info;
+use log::{debug, info};
 use teloxide::Bot;
 use teloxide::prelude::Message;
+use tokio::{signal};
 use tokio::net::TcpListener;
-use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
@@ -13,6 +13,7 @@ use crate::bot::FileQueueType;
 mod bot;
 mod server;
 mod utils;
+mod chat_config;
 
 #[tokio::main]
 async fn main() {
@@ -26,6 +27,11 @@ async fn main() {
 
     info!("Server port: {}", server_port);
 
+    let raw_permissions = chat_config::load_config()
+        .await.expect("Failed to load config");
+
+    let permissions = Arc::new(raw_permissions);
+
     let bot = bot::get_bot().unwrap();
 
     let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::<(Arc<Message>, String, Option<String>)>::new()));
@@ -35,18 +41,31 @@ async fn main() {
 
     let bot_task = {
         let file_queue = Arc::clone(&file_queue);
+        let permissions = Arc::clone(&permissions);
         let tx = tx.clone();
         let bot = bot.clone();
 
         spawn(async move {
             teloxide::repl(bot, move |bot: Bot, msg: Message| {
+                debug!("Received message: {:?}", msg);
+
                 let bot = Arc::new(bot);
                 let bot_clone = Arc::clone(&bot);
+                let permissions = Arc::clone(&permissions);
                 let file_queue = Arc::clone(&file_queue);
                 let tx = tx.clone();
 
                 async move {
-                    bot::process_message(bot_clone, msg, file_queue, tx).await.expect("Fail: process message");
+                    if !permissions.user_has_access(msg.chat.id.to_string(), &msg.from().unwrap().id.to_string()) {
+                        info!("User {} does not have access to chat {}",  msg.from().unwrap().id, msg.clone().chat.id);
+
+                        return Ok({});
+                    }
+
+                    info!("User {} has access to chat {}", msg.from().unwrap().id, msg.clone().chat.id);
+
+                    bot::process_message(bot_clone, msg.clone(), file_queue, tx).await.expect("Fail: process message");
+
                     Ok(())
                 }
             })
@@ -69,11 +88,18 @@ async fn main() {
         let addr: String = format!("0.0.0.0:{}", server_port);
         let listener = TcpListener::bind(&addr).await.unwrap();
 
+        let local_addr = listener.local_addr().unwrap();
+        let ip = local_addr.ip().to_string();
+        let port = local_addr.port();
+
+        info!("Server is running at http://{}:{}/", ip, port);
+
         axum::serve(listener, app).await.unwrap();
     });
 
     let ctrl_c_task = spawn(async {
         signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
+
         info!("\n\nReceived Ctrl+C, shutting down...");
     });
 

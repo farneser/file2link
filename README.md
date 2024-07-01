@@ -150,7 +150,7 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
 
 4. **Access the Application**
 
-    - **File2Link** will be accessible at `http://localhost:8080`.
+   **File2Link** will be accessible at `http://localhost:8080`.
 
 ---
 

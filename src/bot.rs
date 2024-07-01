@@ -59,19 +59,23 @@ pub async fn process_message(
     if let Some(document) = msg_copy.clone().document() {
         info!("Processing document file with ID: {}", document.file.id);
 
-        handle_file(bot.clone(), msg_copy, document.file.id.clone(), document.clone().file_name, file_queue, tx).await?;
+        handle_file(bot.clone(), msg_copy, document.file.id.clone(), document.clone().file_name, file_queue, tx)
+            .await.expect("Failed to handle file");
     } else if let Some(photo) = msg_copy.clone().photo().and_then(|p| p.last()) {
         info!("Processing photo file with ID: {}", photo.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), photo.file.id.clone(), None, file_queue, tx).await?;
+        handle_file(bot.clone(), msg_copy.clone(), photo.file.id.clone(), None, file_queue, tx)
+            .await.expect("Failed to handle file");
     } else if let Some(video) = msg_copy.clone().video() {
         info!("Processing video file with ID: {}", video.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), video.file.id.clone(), video.clone().file_name, file_queue, tx).await?;
+        handle_file(bot.clone(), msg_copy.clone(), video.file.id.clone(), video.clone().file_name, file_queue, tx)
+            .await.expect("Failed to handle file");
     } else if let Some(animation) = msg_copy.clone().animation() {
         info!("Processing animation file with ID: {}", animation.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), animation.file.id.clone(), animation.clone().file_name, file_queue, tx).await?;
+        handle_file(bot.clone(), msg_copy.clone(), animation.file.id.clone(), animation.clone().file_name, file_queue, tx)
+            .await.expect("Failed to handle file");
     } else {
         debug!("Received a non-file message");
     }
