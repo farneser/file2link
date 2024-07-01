@@ -9,7 +9,8 @@ services:
     ports:
       - "8080:8081"
     volumes:
-      - ./files:/files
+      - ./files:/app/files
+      - ./config:/app/config
     env_file:
       - .env
   telegram-bot-api:
