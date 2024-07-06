@@ -20,11 +20,11 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Upload Build Artifacts
+      - name: Upload Binary
         uses: actions/upload-artifact@v3
         with:
-          name: build-artifacts
-          path: target/release/
+          name: File2Link binary
+          path: target/release/file2link
 
   test:
     runs-on: ubuntu-latest
@@ -32,12 +32,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Download Build Artifacts
-        uses: actions/download-artifact@v3
-        with:
-          name: build-artifacts
-          path: target/release/
 
       - name: Run tests
         run: cargo test --release
