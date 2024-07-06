@@ -31,13 +31,6 @@ pub struct PermissionsConfig {
 }
 
 impl PermissionsConfig {
-    fn init_empty() -> Self {
-        PermissionsConfig {
-            allow_all: UsersConfig::StringUsers("".to_string()),
-            chats: HashMap::new(),
-        }
-    }
-
     fn init_allow_all() -> Self {
         PermissionsConfig {
             allow_all: UsersConfig::StringUsers("*".to_string()),
@@ -173,6 +166,15 @@ pub async fn save_config(config: &PermissionsConfig) -> Result<(), Box<dyn Error
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    impl PermissionsConfig {
+        fn init_empty() -> Self {
+            PermissionsConfig {
+                allow_all: UsersConfig::StringUsers("".to_string()),
+                chats: HashMap::new(),
+            }
+        }
+    }
 
     #[tokio::test]
     async fn test_init_allow_all() {

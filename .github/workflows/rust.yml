@@ -16,7 +16,28 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - name: Build
         run: cargo build --release
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts
+          path: target/release/
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Build Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: build-artifacts
+          path: target/release/
+
       - name: Run tests
         run: cargo test --release
