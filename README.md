@@ -178,13 +178,13 @@ For local development or testing, you can run **FileShareBot** without Docker Co
    cargo run
    ```
 
-    - By default, the bot will listen on `http://localhost:8080`.
+- By default, the bot will listen on `http://localhost:8080`.
 
 3. **Access the Application**
 
-    - **File2Link** will be accessible at `http://localhost:8080` for local development.
+- **File2Link** will be accessible at `http://localhost:8080` for local development.
 
-   **Note:** For local testing, the `./files` directory will be relative to your project’s root directory.
+**Note:** For local testing, the `./files` directory will be relative to your project’s root directory.
 
 ### 🛡️ **Permissions**
 
@@ -197,31 +197,67 @@ The configuration file located at `config/permissions.json` and use the followin
 
 ```json
 {
-  "allow_all": {
-    "users": [
+  "allow_all": [
+    "STRING_OR_LIST"
+  ],
+  "chats": {
+    "CHAT_ID": [
       "STRING_OR_LIST"
     ]
-  },
-  "chats": {
-    "CHAT_ID": {
-      "users": [
-        "STRING_OR_LIST"
-      ]
-    }
   }
 }
 ```
 
 #### **Configuration File Fields**
 
-- **`allow_all`**: Defines access rules for all users. Possible values:
-    - **`"*"`**: Access is granted to all users.
-    - **Object with list of users**: Access is granted only to the specified users.
+##### Possible values for the chat configuration are:
 
-- **`chats`**: A dictionary where the key is the chat ID and the value is the access rule for that specific chat. Values
-  can be:
-    - **`"*"`**: Access is granted to all users.
-    - **Object with list of users**: Access is granted only to the specified users.
+- **`STRING`**: A list of IDs separated by commas - **","** (spaces are allowed) or **"*"** for all users.
+
+  examples:
+  ```json
+  {
+    "field1": "1234567, 2345678",
+    "field2": "*"
+  }
+  ```
+
+- **`NUMBER`**: A single user ID.
+
+  example
+  ```json
+  {
+    "field1": 1234567
+  }
+  ```
+
+- **`LIST`**: A list of user IDs that have access to the chat. Allowed combination of strings and numbers.
+
+  example
+
+  ```json
+  {
+    "field1": [1234567, 2345678],
+    "field2": ["1234567", "2345678"],
+    "field3": [1234567, "2345678"]
+  }
+  ```
+
+##### **Configuration Fields**
+
+- **`allow_all`**: Defines access rules for all users.
+- **`chats`**: A dictionary where the key is the chat ID and the value is the chat configuration.
+
+  example
+  ```json
+  {
+    "allow_all": "*",
+    "chats": {
+      "chat1": "*",
+      "chat2": [1234567, 2345678]
+    }
+  }
+  ```
 
 #### 🔑 **Configuration Examples**
 
@@ -240,12 +276,10 @@ In this example, **all users** have access to all chats because `allow_all` is s
 
 ```json 
 {
-  "allow_all": {
-    "users": [
-      "1234567",
-      "2345678"
-    ]
-  },
+  "allow_all": [
+    "1234567",
+    "2345678"
+  ],
   "chats": {}
 }
 ```
@@ -256,14 +290,12 @@ This example grants access to **all chats** only to `1234567` and `2345678`.
 
 ```json
 {
-  "allow_all": "4567890",
+  "allow_all": 4567890,
   "chats": {
-    "chat1": {
-      "users": [
-        "1234567",
-        "2345678"
-      ]
-    },
+    "chat1": [
+      "1234567",
+      2345678
+    ],
     "chat2": "*"
   }
 }
@@ -281,11 +313,9 @@ In this example:
 {
   "allow_all": "31235425",
   "chats": {
-    "chat3": {
-      "users": [
-        "43243243"
-      ]
-    }
+    "chat3": [
+      "43243243"
+    ]
   }
 }
 ```

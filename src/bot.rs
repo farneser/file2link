@@ -260,7 +260,7 @@ async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), Stri
 
     for attempt in 1..=MAX_ATTEMPTS {
         match bot.clone().get_file(id).await {
-            Ok(info) => return Ok((info.path, info.size)),
+            Ok(info) => return Ok((info.clone().path, info.size)),
             Err(e) => {
                 if attempt == MAX_ATTEMPTS {
                     error!("Failed to get file info after {} attempts: {:?}", MAX_ATTEMPTS, e);
