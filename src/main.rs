@@ -1,11 +1,11 @@
 use std::error::Error;
 use std::sync::Arc;
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use teloxide::Bot;
 use teloxide::prelude::Message;
+use tokio::{signal, time};
 use tokio::net::TcpListener;
-use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
@@ -28,10 +28,12 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Server port: {}", server_port);
 
+    let update_permissions_interval = utils::fetch_update_permissions_interval();
+
     let raw_permissions = chat_config::load_config()
         .await.expect("Failed to load config");
 
-    let permissions = Arc::new(raw_permissions);
+    let permissions = Arc::new(Mutex::new(raw_permissions));
 
     let bot = match bot::get_bot() {
         Ok(bot) => { bot }
@@ -63,6 +65,8 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 let tx = tx.clone();
 
                 async move {
+                    let permissions = permissions.lock().await;
+
                     if !permissions.user_has_access(msg.chat.id.to_string(), &msg.from().unwrap().id.to_string()) {
                         info!("User {} does not have access to chat {}",  msg.from().unwrap().id, msg.clone().chat.id);
 
@@ -116,10 +120,49 @@ async fn main() -> Result<(), Box<dyn Error>> {
         info!("\n\nReceived Ctrl+C, shutting down...");
     });
 
+    let update_permissions_task: tokio::task::JoinHandle<Result<(), String>> = {
+        let permissions = Arc::clone(&permissions);
+
+        spawn(async move {
+            if update_permissions_interval > 0 {
+                let mut interval = time::interval(time::Duration::from_secs(update_permissions_interval.abs() as u64));
+                loop {
+                    interval.tick().await;
+
+                    let result = tokio::task::spawn_blocking(|| {
+                        chat_config::load_config()
+                    }).await;
+
+                    match result {
+                        Ok(new_permissions) => {
+                            let mut permissions = permissions.lock().await;
+
+                            *permissions = new_permissions.await.expect("Failed to load config");
+
+                            info!("Permissions updated successfully");
+                        }
+                        Err(e) => {
+                            error!("Spawn blocking task failed: {}", e);
+                        }
+                    }
+                }
+            } else {
+                warn!("Permissions update interval is set to 0, permissions will not be updated automatically");
+
+                loop {
+                    // FIXME 06.07.2024: this shitpost is here because i'm do not know how to run this task by condition
+
+                    time::sleep(time::Duration::from_secs(10)).await;
+                }
+            }
+        })
+    };
+
     tokio::select! {
         _ = bot_task => {},
         _ = queue_processor_task => {},
         _ = server_task => {},
+        _ = update_permissions_task => {}
         _ = ctrl_c_task => {},
     }
 

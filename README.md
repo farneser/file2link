@@ -22,7 +22,7 @@ receive a download link. Use it for file sharing or for quick file transfers to 
 
 ## 🧩 **Installation and Setup**
 
-### **Set Up Environment Variables**
+### 📝 **Set Up Environment Variables**
 
 Create a `.env` file in the root directory based on the `.env.example` file and add the following variables:
 
@@ -34,6 +34,7 @@ Create a `.env` file in the root directory based on the `.env.example` file and 
    TELEGRAM_API_URL=http://nginx:80
    RUST_LOG=info
    ENABLE_FILES_ROUTE=false
+   UPDATE_PERMISSIONS_INTERVAL=300
    
    # telegram bot api server
    TELEGRAM_API_ID=1234567
@@ -92,6 +93,14 @@ Here's a breakdown of each environment variable:
   ENABLE_FILES_ROUTE=false
   ```
 
+- **`UPDATE_PERMISSIONS_INTERVAL`**: The interval in seconds to update permissions. If you want to disable this feature,
+  set it to 0.
+
+  Default:
+  ```text
+  UPDATE_PERMISSIONS_INTERVAL=300
+  ```
+
 - **`TELEGRAM_API_ID`**: Your Telegram API ID, which you can obtain
   from [my.telegram.org](https://my.telegram.org/).
 
@@ -115,7 +124,7 @@ Here's a breakdown of each environment variable:
   TELEGRAM_LOCAL=true
   ```
 
-### 🐳 Run Using Docker Engine
+### 🐳 **Run Using Docker Engine**
 
 **Files uploaded via the bot are stored in the `/app/files` directory within the Docker container.** The `volumes`
 section
@@ -178,11 +187,11 @@ For local development or testing, you can run **FileShareBot** without Docker Co
    cargo run
    ```
 
-- By default, the bot will listen on `http://localhost:8080`.
+    - By default, the bot will listen on `http://localhost:8080`.
 
 3. **Access the Application**
 
-- **File2Link** will be accessible at `http://localhost:8080` for local development.
+    - **File2Link** will be accessible at `http://localhost:8080` for local development.
 
 **Note:** For local testing, the `./files` directory will be relative to your project’s root directory.
 
@@ -190,6 +199,9 @@ For local development or testing, you can run **FileShareBot** without Docker Co
 
 Permissions in the application are managed through a JSON configuration file that sets access rules for all users or
 specific users regarding different chats.
+
+Permissions updates every 300 seconds by default (you can change this value with environment
+variable `UPDATE_PERMISSIONS_INTERVAL`) or restart the bot.
 
 #### 🔧 **Configuration File Format**
 
@@ -208,7 +220,7 @@ The configuration file located at `config/permissions.json` and use the followin
 }
 ```
 
-#### **Configuration File Fields**
+#### ⚙️ **Configuration File Fields**
 
 ##### Possible values for the chat configuration are:
 
@@ -243,7 +255,7 @@ The configuration file located at `config/permissions.json` and use the followin
   }
   ```
 
-##### **Configuration Fields**
+##### Configuration Fields:
 
 - **`allow_all`**: Defines access rules for all users.
 - **`chats`**: A dictionary where the key is the chat ID and the value is the chat configuration.
