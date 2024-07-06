@@ -1,22 +1,53 @@
-use std::error;
+use std::error::Error;
 use std::process;
 use std::sync::Arc;
+use std::time::Duration;
 
+use futures::StreamExt;
 use log::{debug, error, info, warn};
-use reqwest::Url;
+use reqwest::{Client, Url};
 use teloxide::{Bot, prelude::*};
 use teloxide::net::Download;
 use teloxide::types::ParseMode;
-use tokio::fs;
+use tokio::fs::File;
+use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
+use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
 use crate::utils;
 
-pub type FileQueueType = Arc<Mutex<Vec<(Arc<Message>, String, Option<String>)>>>;
+#[derive(Debug, Clone)]
+pub struct FileQueueItem {
+    message: Arc<Message>,
+    queue_message: Arc<Message>,
+    file_id: String,
+    file_name: Option<String>,
+    file_size: u64,
+}
 
-pub fn get_bot() -> Option<Bot> {
+impl FileQueueItem {
+    pub fn new(
+        message: Arc<Message>,
+        queue_message: Arc<Message>,
+        file_id: String,
+        file_name: Option<String>,
+        file_size: u64,
+    ) -> Self {
+        Self {
+            message,
+            queue_message,
+            file_id,
+            file_name,
+            file_size,
+        }
+    }
+}
+
+pub type FileQueueType = Arc<Mutex<Vec<FileQueueItem>>>;
+
+pub fn get_bot() -> Result<Bot, String> {
     let token = match utils::fetch_bot_token() {
         Ok(token) => token,
         Err(e) => {
@@ -33,11 +64,24 @@ pub fn get_bot() -> Option<Bot> {
         Err(e) => {
             error!("Failed to parse API_URL: {}", e);
 
-            return None;
+            return Err("Failed to parse API_URL".to_owned());
         }
     };
 
-    let mut bot = Bot::new(token);
+    let client = match Client::builder()
+        .connect_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(300))
+        .tcp_nodelay(true)
+        .build() {
+        Ok(client) => client,
+        Err(e) => {
+            error!("Failed to create client: {}", e);
+
+            return Err("Failed to create client".to_owned());
+        }
+    };
+
+    let mut bot = Bot::with_client(token, client);
 
     if let Some(url) = url {
         info!("API URL: {}", url.to_string().to_owned());
@@ -45,7 +89,7 @@ pub fn get_bot() -> Option<Bot> {
         bot = bot.set_api_url(url);
     }
 
-    Some(bot)
+    Ok(bot)
 }
 
 pub async fn process_message(
@@ -53,29 +97,53 @@ pub async fn process_message(
     msg: Message,
     file_queue: FileQueueType,
     tx: Sender<()>,
-) -> Result<(), Box<dyn error::Error>> {
-    let msg_copy = Arc::new(msg);
+) -> Result<(), Box<dyn Error>> {
+    let msg_copy = Arc::new(msg.clone());
 
-    if let Some(document) = msg_copy.clone().document() {
+    async fn process_file(
+        bot: Arc<Bot>,
+        msg_copy: Arc<Message>,
+        file_id: String,
+        file_name: Option<String>,
+        file_size: u64,
+        file_queue: FileQueueType,
+        tx: Sender<()>,
+    ) -> Result<(), Box<dyn Error>> {
+        handle_file(bot, msg_copy, file_id, file_name, file_size, file_queue, tx)
+            .await.expect("Failed to handle file");
+        Ok(())
+    }
+
+    let file_info = if let Some(document) = msg_copy.document() {
         info!("Processing document file with ID: {}", document.file.id);
 
-        handle_file(bot.clone(), msg_copy, document.file.id.clone(), document.clone().file_name, file_queue, tx)
-            .await.expect("Failed to handle file");
-    } else if let Some(photo) = msg_copy.clone().photo().and_then(|p| p.last()) {
+        Some((document.file.id.clone(), document.file_name.clone(), document.file.size as u64))
+    } else if let Some(photo) = msg_copy.photo().and_then(|p| p.last()) {
         info!("Processing photo file with ID: {}", photo.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), photo.file.id.clone(), None, file_queue, tx)
-            .await.expect("Failed to handle file");
-    } else if let Some(video) = msg_copy.clone().video() {
+        Some((photo.file.id.clone(), None, photo.file.size as u64))
+    } else if let Some(video) = msg_copy.video() {
         info!("Processing video file with ID: {}", video.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), video.file.id.clone(), video.clone().file_name, file_queue, tx)
-            .await.expect("Failed to handle file");
-    } else if let Some(animation) = msg_copy.clone().animation() {
+        Some((video.file.id.clone(), video.file_name.clone(), video.file.size as u64))
+    } else if let Some(animation) = msg_copy.animation() {
         info!("Processing animation file with ID: {}", animation.file.id);
 
-        handle_file(bot.clone(), msg_copy.clone(), animation.file.id.clone(), animation.clone().file_name, file_queue, tx)
-            .await.expect("Failed to handle file");
+        Some((animation.file.id.clone(), animation.file_name.clone(), animation.file.size as u64))
+    } else {
+        None
+    };
+
+    if let Some((file_id, file_name, file_size)) = file_info {
+        process_file(
+            bot.clone(),
+            msg_copy.clone(),
+            file_id,
+            file_name,
+            file_size,
+            file_queue,
+            tx,
+        ).await.expect("Failed to process file");
     } else {
         debug!("Received a non-file message");
     }
@@ -88,18 +156,22 @@ async fn handle_file(
     msg: Arc<Message>,
     file_id: String,
     file_name: Option<String>,
+    file_size: u64,
     file_queue: FileQueueType,
     tx: Sender<()>,
-) -> Result<(), Box<dyn error::Error>> {
+) -> Result<(), Box<dyn Error>> {
     {
         let mut queue = file_queue.lock().await;
 
-        queue.push((msg.clone(), file_id.clone(), file_name.clone()));
+        let position = queue.len() + 1;
 
-        let position = queue.len();
+        let queue_message = bot.send_message(msg.chat.id, format!("Queue position: {}", position))
+            .reply_to_message_id(msg.id)
+            .await.expect("Failed to send message");
 
-        bot.send_message(msg.chat.id, format!("Queue position: {}", position))
-            .reply_to_message_id(msg.id).await?;
+        let queue_message_clone = Arc::new(queue_message);
+
+        queue.push(FileQueueItem::new(msg.clone(), queue_message_clone, file_id.clone(), file_name.clone(), file_size));
 
         info!("Added file with ID {} to queue. Current queue position: {}", file_id, position);
     }
@@ -109,13 +181,13 @@ async fn handle_file(
     Ok(())
 }
 
-pub(crate) async fn process_queue(
+pub async fn process_queue(
     bot: Arc<Bot>,
     file_queue: FileQueueType,
     mut rx: Receiver<()>,
-) {
-    while let Some(()) = rx.recv().await {
-        let (msg, file_id, file_name) = {
+) -> Result<(), Box<dyn Error>> {
+    Ok(while let Some(()) = rx.recv().await {
+        let queue_item = {
             let queue = file_queue.lock().await;
 
             if let Some(item) = queue.first() {
@@ -125,38 +197,106 @@ pub(crate) async fn process_queue(
             }
         };
 
+        const MAX_ATTEMPTS: u32 = 3;
+
+        for attempt in 1..=MAX_ATTEMPTS {
+            match bot.edit_message_text(
+                queue_item.message.chat.id,
+                queue_item.queue_message.id,
+                "Processing file...",
+            ).await {
+                Ok(_) => break,
+                Err(e) => {
+                    if attempt == MAX_ATTEMPTS {
+                        warn!("Failed to edit message text after {} attempts: {:?}", MAX_ATTEMPTS, e);
+                    } else {
+                        let delay = Duration::from_secs(2_u64.pow(attempt - 1));
+
+                        warn!("Attempt to edit message {} failed, retrying in {:?}... Error: {:?}", attempt, delay, e);
+
+                        sleep(delay).await;
+                    }
+                }
+            }
+        }
+
         if let Err(e) = download_and_process_file(
             bot.clone(),
-            msg.clone(),
-            file_id.clone(),
-            file_name.clone(),
-        ).await { error!("Failed to process file: {}", e) }
+            queue_item.clone(),
+        ).await {
+            error!("Failed to process file: {}", e);
+            continue;
+        }
 
         let mut queue = file_queue.lock().await;
 
         queue.remove(0);
 
+        if let Some(front) = queue.first() {
+            let queue_item = front.clone();
+
+            bot.edit_message_text(
+                queue_item.queue_message.chat.id,
+                queue_item.queue_message.id,
+                format!("File processed. Remaining files in queue: {}", queue.len()),
+            ).await.expect("Failed to edit message");
+        }
+
         info!("Removed file from queue. Remaining files in queue: {}", queue.len());
+    })
+}
+
+
+/// Get file info from Telegram
+///
+/// # Arguments
+/// * `bot` - Bot instance
+/// * `id` - File ID
+/// # Returns
+/// * `Result` containing a tuple of file path and file size
+/// * `String` containing an error message
+async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), String> {
+    const MAX_ATTEMPTS: u32 = 3;
+
+    for attempt in 1..=MAX_ATTEMPTS {
+        match bot.clone().get_file(id).await {
+            Ok(info) => return Ok((info.path, info.size)),
+            Err(e) => {
+                if attempt == MAX_ATTEMPTS {
+                    error!("Failed to get file info after {} attempts: {:?}", MAX_ATTEMPTS, e);
+
+                    return Err("Failed to get file info".to_owned());
+                } else {
+                    warn!("Attempt {} failed, retrying... Error: {:?}", attempt, e);
+
+                    sleep(Duration::from_secs(5)).await;
+                }
+            }
+        }
     }
+
+    unreachable!()
 }
 
 async fn download_and_process_file(
     bot: Arc<Bot>,
-    msg: Arc<Message>,
-    file_id: String,
-    file_name: Option<String>,
-) -> Result<(), Box<dyn error::Error>> {
-    bot.send_message(msg.chat.id, "Starting file downloading")
-        .reply_to_message_id(msg.id).await?;
+    queue_item: FileQueueItem,
+) -> Result<(), String> {
+    info!("Starting download for file ID: {}", queue_item.file_id);
 
-    info!("Starting download for file ID: {}", file_id);
+    utils::create_directory("files")
+        .await.expect("Failed to create directory 'files'");
 
-    utils::create_directory("files").await.expect("Failed to create directory 'files'");
+    let (file_path, file_size) = match get_file_info(bot.clone(), &queue_item.file_id).await {
+        Ok(info) => { info }
+        Err(_) => { return Err("Failed to get file info".to_owned()); }
+    };
 
-    let file_info = bot.clone().get_file(file_id).await?;
+    info!("File path obtained: {}", &file_path);
+
     let uuid = Uuid::new_v4();
 
-    let name = file_name.map(|name| {
+    let name = queue_item.file_name.map(|name| {
         let name = name.to_string();
 
         name.replace(' ', "_")
@@ -164,39 +304,74 @@ async fn download_and_process_file(
 
     let final_file_name = match name {
         Some(name) => format!("files/{}_{}", uuid, name),
-        None => format!("files/{}_{}", uuid, utils::get_file_name_from_path(&file_info.path).unwrap()),
+        None => format!("files/{}_{}", uuid, utils::get_file_name_from_path(&file_path).unwrap()),
     };
 
-    debug!("File path obtained: {}", &file_info.path);
+    debug!("File path obtained: {}", &file_path);
 
-    match fs::File::create(&final_file_name).await {
+    match File::create(&final_file_name).await {
         Ok(mut dst) => {
-            if let Ok(_) = bot.download_file(&utils::get_folder_and_file_name(&file_info.path).unwrap(), &mut dst).await {
-                let final_size = utils::get_file_size(&final_file_name).await.unwrap_or(0);
+            let mut stream = bot.download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
 
-                info!("File saved: {:?}", final_file_name);
+            let mut interval = interval(Duration::from_secs(2));
+            let mut total_bytes = 0;
 
-                bot.send_message(
-                    msg.chat.id,
-                    format!(
-                        "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
-                        final_size,
-                        utils::fetch_domain(),
-                        final_file_name,
-                        utils::fetch_domain(),
-                        final_file_name
-                    ),
-                ).parse_mode(ParseMode::Html)
-                    .reply_to_message_id(msg.id).await
-                    .expect("Failed to send message");
+            loop {
+                tokio::select! {
+                    chunk = stream.next() => {
+                        match chunk {
+                            Some(Ok(bytes)) => {
+                                total_bytes += bytes.len();
+                                dst.write_all(&bytes).await.map_err(|e| e.to_string())?;
+                            }
+                            Some(Err(e)) => {
+                                warn!("Error: {}", e);
 
-                Ok(())
-            } else {
-                warn!("Failed to download the file.");
-
-                Err("Failed to download the file".to_owned().into())
+                                return Err("Failed to download the file".to_owned().into());
+                            }
+                            None => break,
+                        }
+                    }
+                    _ = interval.tick() => {
+                        info!("Downloaded {} of {} bytes", total_bytes, file_size);
+                    }
+                }
             }
+
+            let mut file_size = utils::get_file_size(&final_file_name).await.unwrap_or(0);
+
+            if file_size == 0 {
+                file_size = queue_item.file_size;
+            }
+
+            info!("File saved: {:?}", final_file_name);
+
+            let edit_result = bot.edit_message_text(
+                queue_item.message.chat.id,
+                queue_item.queue_message.id,
+                format!(
+                    "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
+                    file_size,
+                    utils::fetch_domain(),
+                    final_file_name,
+                    utils::fetch_domain(),
+                    final_file_name
+                ),
+            ).parse_mode(ParseMode::Html).await;
+
+            match edit_result {
+                Ok(_) => {
+                    info!("File processed successfully");
+                }
+                Err(_) => {
+                    error!("Failed to edit message");
+                    return Err("Failed to edit message".to_owned().into());
+                }
+            }
+
+            Ok(())
         }
+
         Err(e) => {
             error!("Failed to create file: {:?}", e);
 

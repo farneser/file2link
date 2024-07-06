@@ -1,10 +1,11 @@
+use std::error::Error;
 use std::sync::Arc;
 
-use log::{debug, info};
+use log::{debug, error, info};
 use teloxide::Bot;
 use teloxide::prelude::Message;
-use tokio::{signal};
 use tokio::net::TcpListener;
+use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
@@ -16,7 +17,7 @@ mod utils;
 mod chat_config;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn Error>> {
     utils::load_env();
 
     pretty_env_logger::init();
@@ -32,12 +33,18 @@ async fn main() {
 
     let permissions = Arc::new(raw_permissions);
 
-    let bot = bot::get_bot().unwrap();
+    let bot = match bot::get_bot() {
+        Ok(bot) => { bot }
+        Err(e) => {
+            error!("Failed to create bot: {}", e);
 
-    let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::<(Arc<Message>, String, Option<String>)>::new()));
+            return Err("Failed to create bot".into());
+        }
+    };
 
-    let (tx, rx) = mpsc::channel(1);
-    tx.send(()).await.unwrap();
+    let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::new()));
+
+    let (tx, rx) = mpsc::channel(100);
 
     let bot_task = {
         let file_queue = Arc::clone(&file_queue);
@@ -59,17 +66,18 @@ async fn main() {
                     if !permissions.user_has_access(msg.chat.id.to_string(), &msg.from().unwrap().id.to_string()) {
                         info!("User {} does not have access to chat {}",  msg.from().unwrap().id, msg.clone().chat.id);
 
-                        return Ok({});
+                        return Ok(());
                     }
 
                     info!("User {} has access to chat {}", msg.from().unwrap().id, msg.clone().chat.id);
 
-                    bot::process_message(bot_clone, msg.clone(), file_queue, tx).await.expect("Fail: process message");
+                    if let Err(e) = bot::process_message(bot_clone, msg.clone(), file_queue, tx).await {
+                        error!("Failed to process message: {}", e);
+                    }
 
                     Ok(())
                 }
-            })
-                .await;
+            }).await;
         })
     };
 
@@ -78,7 +86,9 @@ async fn main() {
         let bot = Arc::new(bot.clone());
 
         spawn(async move {
-            bot::process_queue(bot, file_queue, rx).await;
+            if let Err(e) = bot::process_queue(bot, file_queue, rx).await {
+                error!("Failed to process queue: {}", e);
+            }
         })
     };
 
@@ -86,7 +96,8 @@ async fn main() {
         let app = server::create_app();
 
         let addr: String = format!("0.0.0.0:{}", server_port);
-        let listener = TcpListener::bind(&addr).await.unwrap();
+        let listener = TcpListener::bind(&addr).await
+            .expect("Failed to bind to address");
 
         let local_addr = listener.local_addr().unwrap();
         let ip = local_addr.ip().to_string();
@@ -94,7 +105,9 @@ async fn main() {
 
         info!("Server is running at http://{}:{}/", ip, port);
 
-        axum::serve(listener, app).await.unwrap();
+        if let Err(e) = axum::serve(listener, app).await {
+            error!("Server error: {}", e);
+        }
     });
 
     let ctrl_c_task = spawn(async {
@@ -109,4 +122,6 @@ async fn main() {
         _ = server_task => {},
         _ = ctrl_c_task => {},
     }
+
+    Ok(())
 }

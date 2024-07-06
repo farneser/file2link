@@ -83,7 +83,7 @@ pub fn get_file_name_from_path(path: &str) -> Option<&str> {
 }
 
 pub async fn get_file_size(path: &str) -> io::Result<u64> {
-    let metadata = fs::metadata(path).await?;
+    let metadata = fs::metadata(path).await.expect("Failed to read file metadata");
 
     Ok(metadata.len())
 }
