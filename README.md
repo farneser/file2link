@@ -169,16 +169,30 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
 
 🌟 Try it out now and see how easy file handling can be! 🌟
 
-#### 🚀 Local Development
+### 🚀 **Run Locally**
 
-For local development or testing, you can run **FileShareBot** without Docker Compose. Here’s how you can do it:
+For running locally or testing, you can run **File2Link** without Docker Compose. Here’s how you can do it:
 
 1. **Install Rust**
 
    Ensure you have [Rust](https://www.rust-lang.org/) installed on your machine. You can install it from
    the [official website](https://www.rust-lang.org/tools/install).
 
-2. **Build and Run the Application**
+2. **Run Telegram Bot API**
+
+   Before running the bot, you need to run the Telegram Bot API server. You can run it locally or use the official API.
+   For launch the API server locally, you need to configure `.env` file and run the following command:
+
+    ```bash
+    docker compose -f dockerc-compose-telegram-api.yml up -d
+    ```
+
+   **Note:** The API server will be accessible at `http://localhost:8088`.
+
+   **Note:** If you want to use the official API, you don't need to run the API server locally and don't need to
+   set `TELEGRAM_API_URL` environment variable.
+
+3. **Build and Run the Application**
 
    Build and run the application using `cargo` commands:
 
@@ -189,11 +203,13 @@ For local development or testing, you can run **FileShareBot** without Docker Co
 
     - By default, the bot will listen on `http://localhost:8080`.
 
-3. **Access the Application**
+4. **Access the Application**
 
     - **File2Link** will be accessible at `http://localhost:8080` for local development.
 
-**Note:** For local testing, the `./files` directory will be relative to your project’s root directory.
+**Note:** For local testing, the `./files` directory will be relative to project’s root directory.
+
+**Note:** Permissions file location is a `./config/permissions.json`.
 
 ### 🛡️ **Permissions**
 

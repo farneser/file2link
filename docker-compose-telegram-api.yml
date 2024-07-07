@@ -1,19 +1,6 @@
 version: '3.7'
 
 services:
-  app:
-    build: .
-    container_name: file2link-app
-    depends_on:
-      - nginx
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    volumes:
-      - ./files:/app/files
-      - ./config:/app/config
-    env_file:
-      - .env
   telegram-bot-api:
     container_name: file2link-tg-api
     image: aiogram/telegram-bot-api:latest
@@ -31,3 +18,5 @@ services:
     volumes:
       - ./telegram-bot-api-data:/var/lib/telegram-bot-api
       - ./nginx:/etc/nginx/conf.d/
+    ports:
+      - "8088:80"

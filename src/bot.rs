@@ -338,11 +338,7 @@ async fn download_and_process_file(
                 }
             }
 
-            let mut file_size = utils::get_file_size(&final_file_name).await.unwrap_or(0);
-
-            if file_size == 0 {
-                file_size = queue_item.file_size;
-            }
+            let file_size = utils::get_file_size(&final_file_name).await.unwrap_or(file_size as u64);
 
             info!("File saved: {:?}", final_file_name);
 
