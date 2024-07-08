@@ -15,9 +15,14 @@ FROM ubuntu as run
 WORKDIR /app
 
 COPY --from=build /build/target/release/file2link /app/file2link
+COPY --from=build /build/target/release/f2l-cli /app/f2l-cli
 
 RUN chmod +x /app/file2link
+RUN chmod +x /app/f2l-cli
 
+ENV PATH="/app:${PATH}"
+
+ENV F2L_PIPE_PATH "/app/f2l.pipe"
 ENV SERVER_PORT ${SERVER_PORT}
 
 EXPOSE ${SERVER_PORT}

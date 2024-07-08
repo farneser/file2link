@@ -211,6 +211,53 @@ For running locally or testing, you can run **File2Link** without Docker Compose
 
 **Note:** Permissions file location is a `./config/permissions.json`.
 
+### 🔧 **CLI**
+
+Cli is used to manage permissions. You can use the following commands:
+
+- **`update-permissions`**: Update permissions from the configuration file.
+
+Usage:
+
+```bash
+./f2l-cli [OPTIONS] <SUBCOMMAND>
+```
+
+Docker usage:
+
+```bash
+docker exec -it file2link-app f2l-cli [OPTIONS] <SUBCOMMAND>
+```
+
+Options:
+
+* **`--path`** - Path to the FIFO.
+
+  default: `/tmp/file2link.pipe`
+
+  env: F2L_PIPE_PATH
+
+  **Note:** The path should be the same as in the bot configuration.
+
+Subcommands:
+
+* **`update-permissions`** - Updates the permissions from the config file.
+* **`help`** - Prints this message or the help of the given subcommand(s).
+
+Update permissions:
+
+```bash
+./f2l-cli --path /path/to/fifo.pipe update-permissions
+```
+
+Docker update permissions:
+
+```bash
+docker exec -it file2link-app f2l-cli update-permissions
+```
+
+**Note:** Docker container default path is `/app/f2l.pipe`.
+
 ### 🛡️ **Permissions**
 
 Permissions in the application are managed through a JSON configuration file that sets access rules for all users or
@@ -229,9 +276,12 @@ The configuration file located at `config/permissions.json` and use the followin
     "STRING_OR_LIST"
   ],
   "chats": {
-    "CHAT_ID": [
+    "CHAT1_ID": [
       "STRING_OR_LIST"
-    ]
+    ],
+    "CHAT2_ID": "USER1_ID, USER2_ID",
+    "CHAT3_ID": 1234567,
+    "CHAT4_ID": "*"
   }
 }
 ```

@@ -6,17 +6,27 @@ use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 
 #[derive(StructOpt)]
+#[structopt(
+    name = "File2Link CLI",
+    about = "CLI tool for file2link",
+)]
 struct Cli {
     #[structopt(subcommand)]
     command: Command,
 
-    /// Path to the FIFO (default: /tmp/file2link.pipe)
-    #[structopt(long, default_value = "/tmp/file2link.pipe")]
+    /// Path to the FIFO (default: /tmp/file2link.pipe, env: F2L_PIPE_PATH)
+    #[structopt(
+        long,
+        default_value = "/tmp/file2link.pipe",
+        env = "F2L_PIPE_PATH",
+        help = "Path to the FIFO"
+    )]
     path: String,
 }
 
 #[derive(StructOpt)]
 enum Command {
+    #[structopt(about = "Updates the permissions from the config file")]
     UpdatePermissions,
 }
 

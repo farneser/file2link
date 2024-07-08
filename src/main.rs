@@ -6,7 +6,7 @@ use std::sync::Arc;
 use log::{debug, error, info, warn};
 use teloxide::Bot;
 use teloxide::prelude::Message;
-use tokio::{fs, signal, time};
+use tokio::{fs, signal};
 use tokio::fs::OpenOptions;
 use tokio::io::{self, AsyncBufReadExt, BufReader};
 use tokio::net::TcpListener;
@@ -33,8 +33,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let server_port = utils::fetch_server_port();
 
     info!("Server port: {}", server_port);
-
-    let update_permissions_interval = utils::fetch_update_permissions_interval();
 
     let raw_permissions = chat_config::load_config()
         .await.expect("Failed to load config");
@@ -127,10 +125,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     async fn handle_cli(permissions: Arc<Mutex<PermissionsConfig>>) {
-        let path = "/tmp/file2link.pipe";
+        let path = utils::fetch_pipe_path();
 
-        if !Path::new(path).exists() {
-            let c_path = std::ffi::CString::new(path).unwrap();
+        if !Path::new(&path).exists() {
+            let c_path = std::ffi::CString::new(path.clone()).unwrap();
             let result = unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) };
 
             if result != 0 {
@@ -138,7 +136,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 return;
             }
         } else {
-            let metadata = match fs::metadata(path).await {
+            let metadata = match fs::metadata(path.clone()).await {
                 Ok(metadata) => metadata,
                 Err(e) => {
                     eprintln!("Ошибка получения метаданных FIFO: {:?}", e);
@@ -151,7 +149,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             }
         }
 
-        let file = match OpenOptions::new().read(true).open(path).await {
+        let file = match OpenOptions::new().read(true).open(path.clone()).await {
             Ok(file) => file,
             Err(e) => {
                 eprintln!("Ошибка открытия FIFO: {:?}", e);

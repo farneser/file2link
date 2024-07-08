@@ -46,12 +46,6 @@ pub fn fetch_server_port() -> i16 {
         .unwrap_or(8080)
 }
 
-pub fn fetch_update_permissions_interval() -> i32 {
-    fetch_env_variable("UPDATE_PERMISSIONS_INTERVAL")
-        .and_then(|val| val.parse().ok())
-        .unwrap_or(300)
-}
-
 pub fn fetch_domain() -> String {
     let default_port = fetch_server_port();
 
@@ -70,6 +64,13 @@ pub fn fetch_telegram_api() -> String {
     fetch_env_variable("TELEGRAM_API_URL").unwrap_or_else(|| {
         println!("API_URL environment variable is not set");
         "https://api.telegram.org".to_owned()
+    })
+}
+
+pub fn fetch_pipe_path() -> String {
+    fetch_env_variable("F2L_PIPE_PATH").unwrap_or_else(|| {
+        println!("F2L_PIPE_PATH environment variable is not set");
+        "/tmp/file2link.pipe".to_owned()
     })
 }
 

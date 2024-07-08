@@ -24,7 +24,6 @@ pub struct FileQueueItem {
     queue_message: Arc<Message>,
     file_id: String,
     file_name: Option<String>,
-    file_size: u64,
 }
 
 impl FileQueueItem {
@@ -33,14 +32,12 @@ impl FileQueueItem {
         queue_message: Arc<Message>,
         file_id: String,
         file_name: Option<String>,
-        file_size: u64,
     ) -> Self {
         Self {
             message,
             queue_message,
             file_id,
             file_name,
-            file_size,
         }
     }
 }
@@ -105,11 +102,10 @@ pub async fn process_message(
         msg_copy: Arc<Message>,
         file_id: String,
         file_name: Option<String>,
-        file_size: u64,
         file_queue: FileQueueType,
         tx: Sender<()>,
     ) -> Result<(), Box<dyn Error>> {
-        handle_file(bot, msg_copy, file_id, file_name, file_size, file_queue, tx)
+        handle_file(bot, msg_copy, file_id, file_name, file_queue, tx)
             .await.expect("Failed to handle file");
         Ok(())
     }
@@ -117,30 +113,29 @@ pub async fn process_message(
     let file_info = if let Some(document) = msg_copy.document() {
         info!("Processing document file with ID: {}", document.file.id);
 
-        Some((document.file.id.clone(), document.file_name.clone(), document.file.size as u64))
+        Some((document.file.id.clone(), document.file_name.clone()))
     } else if let Some(photo) = msg_copy.photo().and_then(|p| p.last()) {
         info!("Processing photo file with ID: {}", photo.file.id);
 
-        Some((photo.file.id.clone(), None, photo.file.size as u64))
+        Some((photo.file.id.clone(), None))
     } else if let Some(video) = msg_copy.video() {
         info!("Processing video file with ID: {}", video.file.id);
 
-        Some((video.file.id.clone(), video.file_name.clone(), video.file.size as u64))
+        Some((video.file.id.clone(), video.file_name.clone()))
     } else if let Some(animation) = msg_copy.animation() {
         info!("Processing animation file with ID: {}", animation.file.id);
 
-        Some((animation.file.id.clone(), animation.file_name.clone(), animation.file.size as u64))
+        Some((animation.file.id.clone(), animation.file_name.clone()))
     } else {
         None
     };
 
-    if let Some((file_id, file_name, file_size)) = file_info {
+    if let Some((file_id, file_name)) = file_info {
         process_file(
             bot.clone(),
             msg_copy.clone(),
             file_id,
             file_name,
-            file_size,
             file_queue,
             tx,
         ).await.expect("Failed to process file");
@@ -156,7 +151,6 @@ async fn handle_file(
     msg: Arc<Message>,
     file_id: String,
     file_name: Option<String>,
-    file_size: u64,
     file_queue: FileQueueType,
     tx: Sender<()>,
 ) -> Result<(), Box<dyn Error>> {
@@ -171,7 +165,7 @@ async fn handle_file(
 
         let queue_message_clone = Arc::new(queue_message);
 
-        queue.push(FileQueueItem::new(msg.clone(), queue_message_clone, file_id.clone(), file_name.clone(), file_size));
+        queue.push(FileQueueItem::new(msg.clone(), queue_message_clone, file_id.clone(), file_name.clone()));
 
         info!("Added file with ID {} to queue. Current queue position: {}", file_id, position);
     }
