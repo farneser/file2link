@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use log::{debug, error, info, warn};
+use nanoid::nanoid;
 use reqwest::{Client, Url};
 use teloxide::{Bot, prelude::*};
 use teloxide::net::Download;
@@ -14,7 +15,6 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
-use uuid::Uuid;
 
 use crate::config::Config;
 use crate::utils;
@@ -289,7 +289,7 @@ async fn download_and_process_file(
 
     info!("File path obtained: {}", &file_path);
 
-    let uuid = Uuid::new_v4();
+    let id = nanoid!(5);
 
     let name = queue_item.file_name.map(|name| {
         let name = name.to_string();
@@ -298,8 +298,8 @@ async fn download_and_process_file(
     });
 
     let final_file_name = match name {
-        Some(name) => format!("files/{}_{}", uuid, name),
-        None => format!("files/{}_{}", uuid, utils::get_file_name_from_path(&file_path).unwrap()),
+        Some(name) => format!("files/{}_{}", id, name),
+        None => format!("files/{}_{}", id, utils::get_file_name_from_path(&file_path).unwrap()),
     };
 
     debug!("File path obtained: {}", &file_path);

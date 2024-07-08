@@ -93,6 +93,7 @@ mod test {
     use super::*;
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_send_command_success() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_str().unwrap();
@@ -106,6 +107,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_send_command_failure() {
         let path = "/invalid/path/to/file.pipe";
 
@@ -115,6 +117,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_cli_update_permissions() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_str().unwrap();
@@ -132,6 +135,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_cli_shutdown() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path().to_str().unwrap();
@@ -147,6 +151,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_cli_default_path() {
         let temp_file = NamedTempFile::new().unwrap();
 
@@ -157,7 +162,10 @@ mod test {
         cmd.arg("shutdown");
         cmd.assert().success();
 
-        let content = fs::read_to_string(temp_file.path()).unwrap();
+        let content = match fs::read_to_string(temp_file.path()) {
+            Ok(content) => { content }
+            Err(_) => "".to_owned()
+        };
 
         assert_eq!(content, "shutdown\n");
     }

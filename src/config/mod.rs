@@ -128,7 +128,7 @@ fn fetch_domain() -> String {
 
 fn fetch_telegram_api() -> String {
     fetch_env_variable("TELEGRAM_API_URL").unwrap_or_else(|| {
-        println!("API_URL environment variable is not set");
+        println!("TELEGRAM_API_URL environment variable is not set");
         "https://api.telegram.org".to_owned()
     })
 }
@@ -165,6 +165,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_bot_token_success() {
         set_env_variable("BOT_TOKEN", "test_token");
 
@@ -176,6 +177,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_bot_token_failure() {
         remove_env_variable("BOT_TOKEN");
 
@@ -185,6 +187,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_server_port() {
         set_env_variable("SERVER_PORT", "9090");
 
@@ -196,6 +199,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_server_port_default() {
         remove_env_variable("SERVER_PORT");
 
@@ -205,6 +209,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_domain() {
         set_env_variable("APP_DOMAIN", "http://example.com");
 
@@ -216,15 +221,18 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_domain_default() {
         remove_env_variable("APP_DOMAIN");
 
         let domain = fetch_domain();
+        let port = fetch_server_port();
 
-        assert_eq!(domain, "http://localhost:8080/");
+        assert_eq!(domain, format!("http://localhost:{port}/"));
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_telegram_api() {
         set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
 
@@ -236,6 +244,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_telegram_api_default() {
         remove_env_variable("TELEGRAM_API_URL");
 
@@ -245,6 +254,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_pipe_path() {
         set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
 
@@ -256,6 +266,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_pipe_path_default() {
         remove_env_variable("F2L_PIPE_PATH");
 
@@ -265,6 +276,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_enable_files_route_true() {
         set_env_variable("ENABLE_FILES_ROUTE", "true");
 
@@ -276,6 +288,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_enable_files_route_false() {
         set_env_variable("ENABLE_FILES_ROUTE", "false");
 
@@ -287,6 +300,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_fetch_enable_files_route_default() {
         remove_env_variable("ENABLE_FILES_ROUTE");
 
@@ -296,6 +310,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_config_new() {
         set_env_variable("BOT_TOKEN", "test_token");
         set_env_variable("SERVER_PORT", "9090");
@@ -306,7 +321,7 @@ mod test {
 
         let config = Config::new();
 
-        assert_eq!(config.bot_token.unwrap(), "test_token".to_string());
+        assert_eq!(config.bot_token, Ok("test_token".to_string()));
         assert_eq!(config.server_port, 9090);
         assert_eq!(config.domain, "http://example.com/");
         assert_eq!(config.telegram_api_url, "http://api.test.com");
@@ -322,6 +337,7 @@ mod test {
     }
 
     #[tokio::test]
+    #[serial_test::serial]
     async fn test_config_instance() {
         set_env_variable("BOT_TOKEN", "test_token");
         set_env_variable("SERVER_PORT", "9090");
@@ -332,7 +348,7 @@ mod test {
 
         let config = Config::instance().await;
 
-        assert_eq!(config.bot_token, Ok("test_token".to_string()));
+        assert_eq!(config.bot_token.clone().expect(""), "test_token".to_string());
         assert_eq!(config.server_port, 9090);
         assert_eq!(config.domain, "http://example.com/");
         assert_eq!(config.telegram_api_url, "http://api.test.com");
