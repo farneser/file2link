@@ -15,11 +15,10 @@ pub struct Config {
     pipe_path: String,
     enable_files_route: bool,
 }
+static INSTANCE: Lazy<RwLock<Option<Arc<Config>>>> = Lazy::new(|| RwLock::new(None));
 
 impl Config {
     fn new() -> Self {
-        load_env();
-
         let bot_token = fetch_bot_token();
 
         let server_port = fetch_server_port();
@@ -39,8 +38,6 @@ impl Config {
     }
 
     pub async fn instance() -> Arc<Config> {
-        static INSTANCE: Lazy<RwLock<Option<Arc<Config>>>> = Lazy::new(|| RwLock::new(None));
-
         let mut instance = INSTANCE.write().await;
 
         if instance.is_none() {
@@ -153,3 +150,200 @@ fn fetch_enable_files_route() -> bool {
         .unwrap_or(false)
 }
 
+#[cfg(test)]
+mod test {
+    use std::env;
+
+    use super::*;
+
+    fn set_env_variable(key: &str, value: &str) {
+        env::set_var(key, value);
+    }
+
+    fn remove_env_variable(key: &str) {
+        env::remove_var(key);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_bot_token_success() {
+        set_env_variable("BOT_TOKEN", "test_token");
+
+        let token = fetch_bot_token();
+
+        assert_eq!(token, Ok("test_token".to_string()));
+
+        remove_env_variable("BOT_TOKEN");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_bot_token_failure() {
+        remove_env_variable("BOT_TOKEN");
+
+        let token = fetch_bot_token();
+
+        assert_eq!(token, Err("environment variable 'BOT_TOKEN' is not set".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_fetch_server_port() {
+        set_env_variable("SERVER_PORT", "9090");
+
+        let port = fetch_server_port();
+
+        assert_eq!(port, 9090);
+
+        remove_env_variable("SERVER_PORT");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_server_port_default() {
+        remove_env_variable("SERVER_PORT");
+
+        let port = fetch_server_port();
+
+        assert_eq!(port, 8080);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_domain() {
+        set_env_variable("APP_DOMAIN", "http://example.com");
+
+        let domain = fetch_domain();
+
+        assert_eq!(domain, "http://example.com/");
+
+        remove_env_variable("APP_DOMAIN");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_domain_default() {
+        remove_env_variable("APP_DOMAIN");
+
+        let domain = fetch_domain();
+
+        assert_eq!(domain, "http://localhost:8080/");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_telegram_api() {
+        set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
+
+        let api_url = fetch_telegram_api();
+
+        assert_eq!(api_url, "http://api.test.com");
+
+        remove_env_variable("TELEGRAM_API_URL");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_telegram_api_default() {
+        remove_env_variable("TELEGRAM_API_URL");
+
+        let api_url = fetch_telegram_api();
+
+        assert_eq!(api_url, "https://api.telegram.org");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_pipe_path() {
+        set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
+
+        let pipe_path = fetch_pipe_path();
+
+        assert_eq!(pipe_path, "/custom/path.pipe");
+
+        remove_env_variable("F2L_PIPE_PATH");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_pipe_path_default() {
+        remove_env_variable("F2L_PIPE_PATH");
+
+        let pipe_path = fetch_pipe_path();
+
+        assert_eq!(pipe_path, "/tmp/file2link.pipe");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_enable_files_route_true() {
+        set_env_variable("ENABLE_FILES_ROUTE", "true");
+
+        let enable_files_route = fetch_enable_files_route();
+
+        assert!(enable_files_route);
+
+        remove_env_variable("ENABLE_FILES_ROUTE");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_enable_files_route_false() {
+        set_env_variable("ENABLE_FILES_ROUTE", "false");
+
+        let enable_files_route = fetch_enable_files_route();
+
+        assert!(!enable_files_route);
+
+        remove_env_variable("ENABLE_FILES_ROUTE");
+    }
+
+    #[tokio::test]
+    async fn test_fetch_enable_files_route_default() {
+        remove_env_variable("ENABLE_FILES_ROUTE");
+
+        let enable_files_route = fetch_enable_files_route();
+
+        assert!(!enable_files_route);
+    }
+
+    #[tokio::test]
+    async fn test_config_new() {
+        set_env_variable("BOT_TOKEN", "test_token");
+        set_env_variable("SERVER_PORT", "9090");
+        set_env_variable("APP_DOMAIN", "http://example.com");
+        set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
+        set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
+        set_env_variable("ENABLE_FILES_ROUTE", "true");
+
+        let config = Config::new();
+
+        assert_eq!(config.bot_token.unwrap(), "test_token".to_string());
+        assert_eq!(config.server_port, 9090);
+        assert_eq!(config.domain, "http://example.com/");
+        assert_eq!(config.telegram_api_url, "http://api.test.com");
+        assert_eq!(config.pipe_path, "/custom/path.pipe");
+        assert!(config.enable_files_route);
+
+        remove_env_variable("BOT_TOKEN");
+        remove_env_variable("SERVER_PORT");
+        remove_env_variable("APP_DOMAIN");
+        remove_env_variable("TELEGRAM_API_URL");
+        remove_env_variable("F2L_PIPE_PATH");
+        remove_env_variable("ENABLE_FILES_ROUTE");
+    }
+
+    #[tokio::test]
+    async fn test_config_instance() {
+        set_env_variable("BOT_TOKEN", "test_token");
+        set_env_variable("SERVER_PORT", "9090");
+        set_env_variable("APP_DOMAIN", "http://example.com");
+        set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
+        set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
+        set_env_variable("ENABLE_FILES_ROUTE", "true");
+
+        let config = Config::instance().await;
+
+        assert_eq!(config.bot_token, Ok("test_token".to_string()));
+        assert_eq!(config.server_port, 9090);
+        assert_eq!(config.domain, "http://example.com/");
+        assert_eq!(config.telegram_api_url, "http://api.test.com");
+        assert_eq!(config.pipe_path, "/custom/path.pipe");
+        assert!(config.enable_files_route);
+
+        remove_env_variable("BOT_TOKEN");
+        remove_env_variable("SERVER_PORT");
+        remove_env_variable("APP_DOMAIN");
+        remove_env_variable("TELEGRAM_API_URL");
+        remove_env_variable("F2L_PIPE_PATH");
+        remove_env_variable("ENABLE_FILES_ROUTE");
+    }
+}

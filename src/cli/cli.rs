@@ -81,3 +81,84 @@ pub async fn send_command(path: &str, command: &str) -> Result<(), Box<dyn Error
 
     Ok(())
 }
+
+#[cfg(test)]
+mod test {
+    use std::env;
+    use std::fs;
+
+    use assert_cmd::Command;
+    use tempfile::NamedTempFile;
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_send_command_success() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_str().unwrap();
+
+        let result = send_command(path, "test_command").await;
+
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(path).unwrap();
+        assert_eq!(content, "test_command\n");
+    }
+
+    #[tokio::test]
+    async fn test_send_command_failure() {
+        let path = "/invalid/path/to/file.pipe";
+
+        let result = send_command(path, "test_command").await;
+
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_cli_update_permissions() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_str().unwrap();
+
+        let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
+
+        cmd.arg("--path").arg(path).arg("update-permissions");
+
+        cmd.assert().success();
+
+        let content = fs::read_to_string(path).unwrap();
+        println!("content: {content}");
+
+        assert_eq!(content, "update_permissions\n");
+    }
+
+    #[tokio::test]
+    async fn test_cli_shutdown() {
+        let temp_file = NamedTempFile::new().unwrap();
+        let path = temp_file.path().to_str().unwrap();
+
+        let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
+        cmd.arg("--path").arg(path).arg("shutdown");
+
+        cmd.assert().success();
+
+        let content = fs::read_to_string(path).unwrap();
+
+        assert_eq!(content, "shutdown\n");
+    }
+
+    #[tokio::test]
+    async fn test_cli_default_path() {
+        let temp_file = NamedTempFile::new().unwrap();
+
+        env::set_var("F2L_PIPE_PATH", temp_file.path().to_str().unwrap());
+
+        let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
+
+        cmd.arg("shutdown");
+        cmd.assert().success();
+
+        let content = fs::read_to_string(temp_file.path()).unwrap();
+
+        assert_eq!(content, "shutdown\n");
+    }
+}

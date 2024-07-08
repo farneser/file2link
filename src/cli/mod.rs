@@ -14,9 +14,7 @@ use crate::config::Config;
 
 pub mod cli;
 
-pub async fn handle_cli(
-    permissions: Arc<Mutex<PermissionsConfig>>,
-) {
+pub async fn handle_cli(permissions: Arc<Mutex<PermissionsConfig>>) {
     let path = Config::instance().await.pipe_path();
 
     if !Path::new(&path).exists() {
@@ -69,8 +67,8 @@ pub async fn handle_cli(
                 let new_permissions = match chat_config::load_config().await {
                     Ok(new_permissions) => new_permissions,
                     Err(e) => {
-                        warn!("Failed to load new permissions config, using old one. Error\
-                            : {:?}", e);
+                        warn!("Failed to load new permissions config, using old one. Error: {:?}", e);
+
                         continue;
                     }
                 };
