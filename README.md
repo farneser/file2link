@@ -34,7 +34,6 @@ Create a `.env` file in the root directory based on the `.env.example` file and 
    TELEGRAM_API_URL=http://nginx:80
    RUST_LOG=info
    ENABLE_FILES_ROUTE=false
-   UPDATE_PERMISSIONS_INTERVAL=300
    
    # telegram bot api server
    TELEGRAM_API_ID=1234567
@@ -93,14 +92,6 @@ Here's a breakdown of each environment variable:
   ENABLE_FILES_ROUTE=false
   ```
 
-- **`UPDATE_PERMISSIONS_INTERVAL`**: The interval in seconds to update permissions. If you want to disable this feature,
-  set it to 0.
-
-  Default:
-  ```text
-  UPDATE_PERMISSIONS_INTERVAL=300
-  ```
-
 - **`TELEGRAM_API_ID`**: Your Telegram API ID, which you can obtain
   from [my.telegram.org](https://my.telegram.org/).
 
@@ -123,6 +114,15 @@ Here's a breakdown of each environment variable:
   ```text
   TELEGRAM_LOCAL=true
   ```
+
+- **`F2L_PIPE_PATH`**: Path to the FIFO.
+
+  Default:
+  ```text
+  F2L_PIPE_PATH=/tmp/file2link.pipe
+  ```
+
+  **Note:** CLI DO NOT use `.env` file. You need to pass the path to the FIFO as an argument or set the `F2L_PIPE_PATH`.
 
 ### 🐳 **Run Using Docker Engine**
 
@@ -263,8 +263,7 @@ docker exec -it file2link-app f2l-cli update-permissions
 Permissions in the application are managed through a JSON configuration file that sets access rules for all users or
 specific users regarding different chats.
 
-Permissions updates every 300 seconds by default (you can change this value with environment
-variable `UPDATE_PERMISSIONS_INTERVAL`) or restart the bot.
+Permissions updates every restart or by using the CLI command `update-permissions`
 
 #### 🔧 **Configuration File Format**
 
