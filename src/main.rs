@@ -8,9 +8,9 @@ use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
-use tokio_util::sync::CancellationToken;
 
 use crate::bot::FileQueueType;
+use crate::cli::cli::send_command;
 use crate::cli::handle_cli;
 use crate::config::Config;
 
@@ -36,7 +36,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .await.expect("Failed to load config");
 
     let permissions = Arc::new(Mutex::new(raw_permissions));
-    let shutdown_token = CancellationToken::new();
 
     let bot = match bot::get_bot().await {
         Ok(bot) => bot,
@@ -118,14 +117,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let ctrl_c_task = {
-        let shutdown_token = shutdown_token.clone();
-
         spawn(async move {
             signal::ctrl_c().await.expect("Failed to listen for Ctrl+C");
 
-            info!("\n\nReceived Ctrl+C, shutting down...");
+            info!("Received Ctrl+C, shutting down...");
 
-            shutdown_token.cancel();
+            match send_command(&Config::instance().await.pipe_path(), "shutdown").await {
+                Ok(_) => info!("Command 'shutdown' sent"),
+                Err(_) => error!("Failed to send shutdown command")
+            };
         })
     };
 
@@ -133,7 +133,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let permissions = Arc::clone(&permissions);
 
         spawn(async move {
-            handle_cli(permissions, shutdown_token.clone()).await;
+            handle_cli(permissions).await;
         })
     };
 

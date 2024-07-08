@@ -1,27 +1,23 @@
 use std::os::unix::fs::FileTypeExt;
 use std::path::Path;
 use std::sync::Arc;
-use std::time::Duration;
 
 use log::{error, info, warn};
 use tokio::fs;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::Mutex;
-use tokio::time::{sleep, timeout};
-use tokio_util::sync::CancellationToken;
 
 use crate::chat_config;
 use crate::chat_config::PermissionsConfig;
 use crate::config::Config;
 
+pub mod cli;
+
 pub async fn handle_cli(
     permissions: Arc<Mutex<PermissionsConfig>>,
-    shutdown_token: CancellationToken,
 ) {
     let path = Config::instance().await.pipe_path();
-
-    info!("Shutting token is cancelled: {}", shutdown_token.is_cancelled());
 
     if !Path::new(&path).exists() {
         let c_path = std::ffi::CString::new(path.clone()).unwrap();
@@ -61,45 +57,33 @@ pub async fn handle_cli(
     let mut reader = BufReader::new(file).lines();
 
     loop {
-        if shutdown_token.is_cancelled() {
-            info!("Shutting down CLI handler");
-            break;
-        }
-
-        match timeout(Duration::from_secs(1), reader.next_line()).await {
-            Ok(Ok(Some(line))) => {
-                info!("Received command: {}", line.trim());
-
-                if line.trim() == "update_permissions" {
-                    let new_permissions = match chat_config::load_config().await {
-                        Ok(new_permissions) => new_permissions,
-                        Err(e) => {
-                            warn!("Failed to load new permissions config, using old one. Error: {:?}", e);
-                            continue;
-                        }
-                    };
-
-                    let mut permissions = permissions.lock().await;
-                    *permissions = new_permissions;
-                    info!("Permissions updated successfully");
-                }
-            }
-            Ok(Ok(None)) => {
-                warn!("FIFO closed");
-                break;
-            }
-            Ok(Err(e)) => {
-                error!("Error reading from FIFO: {:?}", e);
+        while let Some(line) = match reader.next_line().await {
+            Ok(line) => line,
+            Err(e) => {
+                eprintln!("Ошибка чтения из FIFO: {:?}", e);
                 return;
             }
-            Err(_) => {
-                if shutdown_token.is_cancelled() {
-                    info!("Shutting down CLI handler");
-                    break;
-                }
+        } {
+            if line.trim() == "update_permissions" {
+                let new_permissions = match chat_config::load_config().await {
+                    Ok(new_permissions) => new_permissions,
+                    Err(e) => {
+                        warn!("Failed to load new permissions config, using old one. Error\
+                            : {:?}", e);
+                        continue;
+                    }
+                };
+
+                let mut permissions = permissions.lock().await;
+
+                *permissions = new_permissions;
+
+                info!("Permissions updated successfully");
+            } else if line.trim() == "shutdown" {
+                info!("Shutting down command handled");
+
+                return;
             }
         }
-
-        sleep(Duration::from_millis(100)).await;
     }
 }

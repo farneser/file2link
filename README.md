@@ -242,6 +242,7 @@ Options:
 Subcommands:
 
 * **`update-permissions`** - Updates the permissions from the config file.
+* **`shutdown`** - Shutting down the system.
 * **`help`** - Prints this message or the help of the given subcommand(s).
 
 Update permissions:
