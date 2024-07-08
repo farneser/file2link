@@ -60,7 +60,8 @@ pub async fn handle_cli(
         while let Some(line) = match reader.next_line().await {
             Ok(line) => line,
             Err(e) => {
-                eprintln!("Ошибка чтения из FIFO: {:?}", e);
+                error!("Failed to read FIFO at {}: {}", path, e);
+
                 return;
             }
         } {
