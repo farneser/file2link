@@ -11,10 +11,10 @@ use http::{header::CONTENT_TYPE, StatusCode};
 use log::{debug, error, info, warn};
 use mime_guess::from_path;
 
-use crate::utils;
+use crate::config::Config;
 
-pub fn create_app() -> Router {
-    let enable_files_route = utils::fetch_enable_files_route();
+pub async fn create_app() -> Router {
+    let enable_files_route = Config::instance().await.enable_files_route();
 
     let mut router = Router::new()
         .route("/", get(root))

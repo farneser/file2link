@@ -20,11 +20,13 @@ jobs:
       - name: Build
         run: cargo build --release
 
-      - name: Upload Binary
+      - name: Upload Binaries
         uses: actions/upload-artifact@v3
         with:
-          name: File2Link binary
-          path: target/release/file2link
+          name: File2Link binaries
+          path: |
+            target/release/file2link
+            target/release/f2l-cli
 
   test:
     runs-on: ubuntu-latest

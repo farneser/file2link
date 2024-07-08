@@ -50,12 +50,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
             file.write_all(b"update_permissions\n").await
                 .map_err(|e| {
                     error!("Failed to write to the FIFO: {}", e);
+
                     Box::new(e) as Box<dyn Error>
                 })?;
 
             file.flush().await
                 .map_err(|e| {
                     error!("Failed to flush the FIFO: {}", e);
+
                     Box::new(e) as Box<dyn Error>
                 })?;
 

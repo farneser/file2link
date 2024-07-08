@@ -16,6 +16,7 @@ use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
 use uuid::Uuid;
 
+use crate::config::Config;
 use crate::utils;
 
 #[derive(Debug, Clone)]
@@ -44,8 +45,8 @@ impl FileQueueItem {
 
 pub type FileQueueType = Arc<Mutex<Vec<FileQueueItem>>>;
 
-pub fn get_bot() -> Result<Bot, String> {
-    let token = match utils::fetch_bot_token() {
+pub async fn get_bot() -> Result<Bot, String> {
+    let token = match Config::instance().await.bot_token() {
         Ok(token) => token,
         Err(e) => {
             error!("Failed to fetch bot token: {}", e);
@@ -54,7 +55,7 @@ pub fn get_bot() -> Result<Bot, String> {
         }
     };
 
-    let api_url = utils::fetch_telegram_api();
+    let api_url = Config::instance().await.telegram_api_url();
 
     let url = match Url::parse(&api_url) {
         Ok(url) => Some(url),
@@ -342,9 +343,9 @@ async fn download_and_process_file(
                 format!(
                     "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
                     file_size,
-                    utils::fetch_domain(),
+                    Config::instance().await.domain(),
                     final_file_name,
-                    utils::fetch_domain(),
+                    Config::instance().await.domain(),
                     final_file_name
                 ),
             ).parse_mode(ParseMode::Html).await;

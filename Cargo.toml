@@ -19,7 +19,9 @@ serde = { version = "1.0.203", features = ["derive"] }
 futures = "0.3.30"
 libc = "0.2.155"
 structopt = "0.3.26"
+tokio-util = "0.7.11"
+once_cell = "1.19.0"
 
 [[bin]]
 name = "f2l-cli"
-path = "src/cli.rs"
+path = "src/cli/cli.rs"

@@ -368,6 +368,7 @@ dependencies = [
  "libc",
  "log",
  "mime_guess",
+ "once_cell",
  "pretty_env_logger",
  "reqwest",
  "serde",
@@ -375,6 +376,7 @@ dependencies = [
  "structopt",
  "teloxide",
  "tokio",
+ "tokio-util",
  "uuid",
 ]
 
