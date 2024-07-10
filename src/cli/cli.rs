@@ -1,7 +1,10 @@
 use std::error::Error;
+use std::os::unix::fs::FileTypeExt;
+use std::path::Path;
 
 use log::{error, info};
 use structopt::StructOpt;
+use tokio::fs;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 
@@ -82,21 +85,62 @@ pub async fn send_command(path: &str, command: &str) -> Result<(), Box<dyn Error
     Ok(())
 }
 
+pub async fn create_fifo(path: &str) -> Result<(), String> {
+    if !Path::new(&path).exists() {
+        let c_path = std::ffi::CString::new(path).unwrap();
+        let result = unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) };
+
+        if result != 0 {
+            error!("Failed to create FIFO at {}", path);
+
+            return Err(format!("Failed to create FIFO at {}", path));
+        }
+    } else {
+        let metadata = match fs::metadata(path).await {
+            Ok(metadata) => metadata,
+            Err(e) => {
+                error!("Failed to get metadata for FIFO: {:?}", e);
+
+                return Err(format!("Failed to get metadata for FIFO: {:?}", e));
+            }
+        };
+
+        if !metadata.file_type().is_fifo() {
+            error!("Path is not a FIFO: {:?}", path);
+
+            return Err(format!("Path is not a FIFO: {:?}", path));
+        }
+    }
+
+    Ok(())
+}
 #[cfg(test)]
 mod test {
     use std::env;
     use std::fs;
 
     use assert_cmd::Command;
-    use tempfile::NamedTempFile;
+    use nanoid::nanoid;
 
     use super::*;
+
+    async fn create_rnd_file() -> String {
+        let path = format!("/tmp/f2l-test-temp-{}.pipe", nanoid!());
+
+        fs::write(&path, "").unwrap();
+
+        path
+    }
+
+    async fn delete_file(path: &str) {
+        fs::remove_file(path).unwrap();
+    }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn test_send_command_success() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let path = temp_file.path().to_str().unwrap();
+        let binding = create_rnd_file().await;
+        let path = binding.as_str();
 
         let result = send_command(path, "test_command").await;
 
@@ -104,6 +148,8 @@ mod test {
 
         let content = fs::read_to_string(path).unwrap();
         assert_eq!(content, "test_command\n");
+
+        delete_file(path).await;
     }
 
     #[tokio::test]
@@ -119,8 +165,8 @@ mod test {
     #[tokio::test]
     #[serial_test::serial]
     async fn test_cli_update_permissions() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let path = temp_file.path().to_str().unwrap();
+        let binding = create_rnd_file().await;
+        let path = binding.as_str();
 
         let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
 
@@ -132,13 +178,15 @@ mod test {
         println!("content: {content}");
 
         assert_eq!(content, "update_permissions\n");
+
+        delete_file(path).await;
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn test_cli_shutdown() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let path = temp_file.path().to_str().unwrap();
+        let binding = create_rnd_file().await;
+        let path = binding.as_str();
 
         let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
         cmd.arg("--path").arg(path).arg("shutdown");
@@ -148,25 +196,30 @@ mod test {
         let content = fs::read_to_string(path).unwrap();
 
         assert_eq!(content, "shutdown\n");
+
+        delete_file(path).await;
     }
 
     #[tokio::test]
     #[serial_test::serial]
     async fn test_cli_default_path() {
-        let temp_file = NamedTempFile::new().unwrap();
+        let binding = create_rnd_file().await;
+        let path = binding.as_str();
 
-        env::set_var("F2L_PIPE_PATH", temp_file.path().to_str().unwrap());
+        env::set_var("F2L_PIPE_PATH", path);
 
         let mut cmd = Command::cargo_bin("f2l-cli").unwrap();
 
         cmd.arg("shutdown");
         cmd.assert().success();
 
-        let content = match fs::read_to_string(temp_file.path()) {
+        let content = match fs::read_to_string(path) {
             Ok(content) => { content }
             Err(_) => "".to_owned()
         };
 
         assert_eq!(content, "shutdown\n");
+
+        delete_file(path).await;
     }
 }

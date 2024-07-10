@@ -1,15 +1,13 @@
-use std::os::unix::fs::FileTypeExt;
-use std::path::Path;
 use std::sync::Arc;
 
 use log::{error, info, warn};
-use tokio::fs;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::Mutex;
 
 use crate::chat_config;
 use crate::chat_config::PermissionsConfig;
+use crate::cli::cli::create_fifo;
 use crate::config::Config;
 
 pub mod cli;
@@ -17,27 +15,10 @@ pub mod cli;
 pub async fn handle_cli(permissions: Arc<Mutex<PermissionsConfig>>) {
     let path = Config::instance().await.pipe_path();
 
-    if !Path::new(&path).exists() {
-        let c_path = std::ffi::CString::new(path.clone()).unwrap();
-        let result = unsafe { libc::mkfifo(c_path.as_ptr(), 0o644) };
-
-        if result != 0 {
-            error!("Failed to create FIFO at {}", path);
-
-            return;
-        }
-    } else {
-        let metadata = match fs::metadata(path.clone()).await {
-            Ok(metadata) => metadata,
-            Err(e) => {
-                error!("Failed to get metadata for FIFO: {:?}", e);
-
-                return;
-            }
-        };
-
-        if !metadata.file_type().is_fifo() {
-            error!("Path is not a FIFO: {:?}", path);
+    match create_fifo(&path).await {
+        Ok(_) => info!("FIFO created at {}", path),
+        Err(e) => {
+            error!("Failed to create FIFO at {}: {}", path, e);
 
             return;
         }

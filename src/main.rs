@@ -10,8 +10,8 @@ use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::bot::FileQueueType;
+use crate::cli::{handle_cli};
 use crate::cli::cli::send_command;
-use crate::cli::handle_cli;
 use crate::config::Config;
 
 mod bot;
