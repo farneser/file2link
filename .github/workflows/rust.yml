@@ -38,6 +38,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: File2Link binaries
+          path: target/release
 
       - name: Run tests
         run: cargo test --release
