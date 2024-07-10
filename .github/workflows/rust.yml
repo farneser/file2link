@@ -11,7 +11,6 @@ env:
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
@@ -34,6 +33,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: File2Link binaries
 
       - name: Run tests
         run: cargo test --release
