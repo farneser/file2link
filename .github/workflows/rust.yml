@@ -34,11 +34,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download Binaries
-        uses: actions/download-artifact@v3
-        with:
-          name: File2Link binaries
-          path: target/release
+      - name: Run build
+        run: cargo build --release
 
       - name: Run tests
         run: cargo test --release
