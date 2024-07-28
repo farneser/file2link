@@ -2,7 +2,7 @@ version: '3.7'
 
 services:
   app:
-    build: .
+    image: farneser/file2link:latest
     container_name: file2link-app
     depends_on:
       - nginx
