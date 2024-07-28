@@ -298,13 +298,15 @@ async fn download_and_process_file(
     });
 
     let final_file_name = match name {
-        Some(name) => format!("files/{}_{}", id, name),
-        None => format!("files/{}_{}", id, utils::get_file_name_from_path(&file_path).unwrap()),
+        Some(name) => format!("{}_{}", id, name),
+        None => format!("{}_{}", id, utils::get_file_name_from_path(&file_path).unwrap()),
     };
+
+    let file_name_with_folder = format!("files/{}", final_file_name);
 
     debug!("File path obtained: {}", &file_path);
 
-    match File::create(&final_file_name).await {
+    match File::create(&file_name_with_folder).await {
         Ok(mut dst) => {
             let mut stream = bot.download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
 
@@ -333,9 +335,11 @@ async fn download_and_process_file(
                 }
             }
 
-            let file_size = utils::get_file_size(&final_file_name).await.unwrap_or(file_size as u64);
+            let file_size = utils::get_file_size(&file_name_with_folder).await.unwrap_or(file_size as u64);
 
             info!("File saved: {:?}", final_file_name);
+
+            let file_domain = Config::instance().await.file_domain();
 
             let edit_result = bot.edit_message_text(
                 queue_item.message.chat.id,
@@ -343,9 +347,9 @@ async fn download_and_process_file(
                 format!(
                     "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
                     file_size,
-                    Config::instance().await.domain(),
+                    file_domain,
                     final_file_name,
-                    Config::instance().await.domain(),
+                    file_domain,
                     final_file_name
                 ),
             ).parse_mode(ParseMode::Html).await;

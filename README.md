@@ -58,17 +58,19 @@ Here's a breakdown of each environment variable:
   SERVER_PORT=8080
   ```
 
-- **`APP_DOMAIN`**: The domain or IP address where your application is accessible.
+- **`APP_FILE_DOMAIN`**: The domain or IP address where your application is accessible with files endpoint.
 
   Default:
   ```text
-  APP_DOMAIN=http://localhost:8080
+  APP_FILE_DOMAIN=http://localhost:8080/files
   ```
 
   Example:
   ```text
-  APP_DOMAIN=https://domain.com
+  APP_FILE_DOMAIN=https://domain.com/files
   ```
+
+  **Note:** This variable is used to generate a link to the file.  
 
 - **`TELEGRAM_API_URL`**: The URL of the Telegram API server. If you are running the API server in Docker, it’s
   usually the name of the Docker service.

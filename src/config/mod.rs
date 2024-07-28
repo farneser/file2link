@@ -10,11 +10,12 @@ use tokio::sync::RwLock;
 pub struct Config {
     bot_token: Result<String, String>,
     server_port: i16,
-    domain: String,
+    file_domain: String,
     telegram_api_url: String,
     pipe_path: String,
     enable_files_route: bool,
 }
+
 static INSTANCE: Lazy<RwLock<Option<Arc<Config>>>> = Lazy::new(|| RwLock::new(None));
 
 impl Config {
@@ -22,7 +23,7 @@ impl Config {
         let bot_token = fetch_bot_token();
 
         let server_port = fetch_server_port();
-        let domain = fetch_domain();
+        let file_domain = fetch_file_domain();
         let telegram_api_url = fetch_telegram_api();
         let pipe_path = fetch_pipe_path();
         let enable_files_route = fetch_enable_files_route();
@@ -30,7 +31,7 @@ impl Config {
         Self {
             bot_token,
             server_port,
-            domain,
+            file_domain,
             telegram_api_url,
             pipe_path,
             enable_files_route,
@@ -55,8 +56,8 @@ impl Config {
         self.server_port
     }
 
-    pub fn domain(&self) -> String {
-        self.domain.to_owned()
+    pub fn file_domain(&self) -> String {
+        self.file_domain.to_owned()
     }
 
     pub fn telegram_api_url(&self) -> String {
@@ -112,17 +113,19 @@ fn fetch_server_port() -> i16 {
         .unwrap_or(8080)
 }
 
-fn fetch_domain() -> String {
+/// Fetches the domain from the environment variables.
+/// Ends the domain with a slash if it doesn't have one.
+fn fetch_file_domain() -> String {
     let default_port = fetch_server_port();
 
-    let default_url = format!("http://localhost:{default_port}");
+    let default_url = format!("http://localhost:{default_port}/files");
 
-    let domain = fetch_env_variable("APP_DOMAIN").unwrap_or_else(|| default_url);
+    let app_file_domain = fetch_env_variable("APP_FILE_DOMAIN").unwrap_or_else(|| default_url);
 
-    if domain.ends_with('/') {
-        domain
+    if app_file_domain.ends_with('/') {
+        app_file_domain
     } else {
-        format!("{domain}/")
+        format!("{app_file_domain}/")
     }
 }
 
@@ -210,10 +213,10 @@ mod test {
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_fetch_domain() {
-        set_env_variable("APP_DOMAIN", "http://example.com");
+    async fn test_fetch_file_domain() {
+        set_env_variable("APP_FILE_DOMAIN", "http://example.com");
 
-        let domain = fetch_domain();
+        let domain = fetch_file_domain();
 
         assert_eq!(domain, "http://example.com/");
 
@@ -222,13 +225,13 @@ mod test {
 
     #[tokio::test]
     #[serial_test::serial]
-    async fn test_fetch_domain_default() {
-        remove_env_variable("APP_DOMAIN");
+    async fn test_fetch_file_url_default() {
+        remove_env_variable("APP_FILE_DOMAIN");
 
-        let domain = fetch_domain();
+        let domain = fetch_file_domain();
         let port = fetch_server_port();
 
-        assert_eq!(domain, format!("http://localhost:{port}/"));
+        assert_eq!(domain, format!("http://localhost:{port}/files/"));
     }
 
     #[tokio::test]
@@ -314,7 +317,7 @@ mod test {
     async fn test_config_new() {
         set_env_variable("BOT_TOKEN", "test_token");
         set_env_variable("SERVER_PORT", "9090");
-        set_env_variable("APP_DOMAIN", "http://example.com");
+        set_env_variable("APP_FILE_DOMAIN", "http://example.com/files");
         set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
         set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
         set_env_variable("ENABLE_FILES_ROUTE", "true");
@@ -323,7 +326,7 @@ mod test {
 
         assert_eq!(config.bot_token, Ok("test_token".to_string()));
         assert_eq!(config.server_port, 9090);
-        assert_eq!(config.domain, "http://example.com/");
+        assert_eq!(config.file_domain, "http://example.com/files/");
         assert_eq!(config.telegram_api_url, "http://api.test.com");
         assert_eq!(config.pipe_path, "/custom/path.pipe");
         assert!(config.enable_files_route);
@@ -341,7 +344,7 @@ mod test {
     async fn test_config_instance() {
         set_env_variable("BOT_TOKEN", "test_token");
         set_env_variable("SERVER_PORT", "9090");
-        set_env_variable("APP_DOMAIN", "http://example.com");
+        set_env_variable("APP_FILE_DOMAIN", "http://example.com/files");
         set_env_variable("TELEGRAM_API_URL", "http://api.test.com");
         set_env_variable("F2L_PIPE_PATH", "/custom/path.pipe");
         set_env_variable("ENABLE_FILES_ROUTE", "true");
@@ -350,7 +353,7 @@ mod test {
 
         assert_eq!(config.bot_token.clone().expect(""), "test_token".to_string());
         assert_eq!(config.server_port, 9090);
-        assert_eq!(config.domain, "http://example.com/");
+        assert_eq!(config.file_domain, "http://example.com/files/");
         assert_eq!(config.telegram_api_url, "http://api.test.com");
         assert_eq!(config.pipe_path, "/custom/path.pipe");
         assert!(config.enable_files_route);
