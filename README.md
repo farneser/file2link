@@ -143,23 +143,15 @@ You can easily run **File2Link** using Docker. Follow these steps to get started
    cd file2link
    ```
 
-2. **Build the Docker Image**
-
-   Build the Docker image for the bot:
-
-   ```bash
-   docker compose build 
-   ```
-
-3. **Run the Docker Container**
+2. **Run the Docker Container**
 
    Run the Docker container with the environment variables:
 
    ```bash
-   docker compose up
+   docker compose up -d
    ```
 
-4. **Access the Application**
+3. **Access the Application**
 
    **File2Link** will be accessible at `http://localhost:8080`.
 
