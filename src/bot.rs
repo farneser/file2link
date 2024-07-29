@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::fmt::Display;
 use std::process;
 use std::sync::Arc;
 use std::time::Duration;
@@ -43,6 +44,12 @@ impl FileQueueItem {
             file_name,
             url,
         }
+    }
+}
+
+impl Display for FileQueueItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FileQueueItem {{ message: {:?}, queue_message: {:?}, file_id: {:?}, file_name: {:?}, url: {:?} }}", self.message, self.queue_message, self.file_id, self.file_name, self.url)
     }
 }
 
@@ -101,20 +108,6 @@ pub async fn process_message(
 ) -> Result<(), Box<dyn Error>> {
     let msg_copy = Arc::new(msg.clone());
 
-    async fn process_file(
-        bot: Arc<Bot>,
-        msg_copy: Arc<Message>,
-        file_id: Option<String>,
-        file_name: Option<String>,
-        url: Option<String>,
-        file_queue: FileQueueType,
-        tx: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
-        handle_file(bot, msg_copy, file_id, file_name, url, file_queue, tx)
-            .await.expect("Failed to handle file");
-        Ok(())
-    }
-
     let file_info = if let Some(document) = msg_copy.document() {
         info!("Processing document file with ID: {}", document.file.id);
 
@@ -132,10 +125,20 @@ pub async fn process_message(
 
         Some((Some(animation.file.id.clone()), animation.file_name.clone(), None))
     } else if let Some(text) = msg_copy.text() {
-        if let Ok(url) = Url::parse(text) {
-            info!("Processing URL: {}", url);
+        if text.starts_with("/url") {
+            let url_text = &text[5..].to_string();
 
-            Some((None, None, Some(url.to_string())))
+            info!("Processing URL: {}", url_text);
+
+            if let Ok(url) = Url::parse(url_text) {
+                info!("Processing URL: {}", url);
+
+                // answer_commands(bot.clone(), msg.clone(), Command::Url(url.to_string()), &tx).await.expect("Failed to answer command");
+
+                Some((None, None, Some(url.to_string())))
+            } else {
+                None
+            }
         } else {
             None
         }
@@ -144,14 +147,14 @@ pub async fn process_message(
     };
 
     if let Some((file_id, file_name, url)) = file_info {
-        process_file(
+        handle_file(
             bot.clone(),
             msg_copy.clone(),
             file_id,
             file_name,
             url,
             file_queue,
-            tx,
+            &tx,
         ).await.expect("Failed to process file");
     } else {
         debug!("Received a non-file message");
@@ -167,7 +170,7 @@ async fn handle_file(
     file_name: Option<String>,
     url: Option<String>,
     file_queue: FileQueueType,
-    tx: Sender<()>,
+    tx: &Sender<()>,
 ) -> Result<(), Box<dyn Error>> {
     {
         let mut queue = file_queue.lock().await;
@@ -205,6 +208,8 @@ pub async fn process_queue(
                 continue;
             }
         };
+
+        debug!("Processing file: {:?}", queue_item);
 
         const MAX_ATTEMPTS: u32 = 3;
 
@@ -487,3 +492,45 @@ async fn download_and_process_file_from_url(
         }
     }
 }
+
+// #[derive(BotCommands, Clone)]
+// #[command(rename_rule = "lowercase", description = "These commands are supported:")]
+// enum Command {
+//     #[command(description = "display this text.")]
+//     Help,
+//     #[command(description = "download a file from the URL.")]
+//     Url(String),
+// }
+//
+// pub async fn answer_commands(bot: Arc<Bot>, msg: Message, cmd: Command, tx: &Sender<()>) -> Result<(), String> {
+//     match cmd {
+//         Command::Help => {
+//             match bot.send_message(msg.chat.id, Command::descriptions().to_string()).await {
+//                 Ok(_) => {
+//                     info!("Sent help message");
+//                 }
+//                 Err(_) => {
+//                     error!("Failed to send help message");
+//
+//                     return Err("Failed to send help message".to_owned());
+//                 }
+//             }
+//         }
+//         Command::Url(url) => {
+//             info!("Processing URL: {}", url.clone().to_string());
+//
+//             match handle_file(bot.clone(), Arc::new(msg.clone()), Some(url.to_string()), None, None, Arc::new(Default::default()), tx).await {
+//                 Ok(_) => {
+//                     info!("Processed URL: {}", url.clone().to_string());
+//                 }
+//                 Err(_) => {
+//                     error!("Failed to process URL: {}", url.clone().to_string());
+//
+//                     return Err("Failed to process URL".to_owned());
+//                 }
+//             };
+//         }
+//     };
+//
+//     Ok(())
+// }
