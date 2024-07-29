@@ -10,8 +10,8 @@ use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
 use crate::bot::FileQueueType;
-use crate::cli::{handle_cli};
 use crate::cli::cli::send_command;
+use crate::cli::handle_cli;
 use crate::config::Config;
 
 mod bot;
@@ -69,7 +69,16 @@ async fn main() -> Result<(), Box<dyn Error>> {
                 async move {
                     let permissions = permissions.lock().await;
 
-                    if !permissions.user_has_access(msg.chat.id.to_string(), &msg.from().unwrap().id.to_string()) {
+                    let from = match msg.from() {
+                        Some(from) => from,
+                        None => {
+                            info!("Message does not have a sender");
+
+                            return Ok(());
+                        }
+                    };
+
+                    if !permissions.user_has_access(msg.chat.id.to_string(), &from.id.to_string()) {
                         info!("User {} does not have access to chat {}",  msg.from().unwrap().id, msg.clone().chat.id);
 
                         return Ok(());
