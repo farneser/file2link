@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use crate::config::Config;
 use crate::utils;
-use futures::StreamExt;
+use futures::{Stream, StreamExt};
 use log::{debug, error, info, warn};
 use nanoid::nanoid;
 use regex::Regex;
@@ -19,6 +19,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
+use tokio_util::bytes::Bytes;
 
 #[derive(Debug, Clone)]
 pub struct FileQueueItem {
@@ -336,6 +337,88 @@ async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), Stri
 
     unreachable!()
 }
+async fn create_and_save_file(
+    bot: Arc<Bot>,
+    file_name: &str,
+    mut stream: impl Stream<Item=Result<Bytes, reqwest::Error>> + Unpin,
+    total_size: Option<u32>,
+) -> Result<u32, String> {
+    utils::create_directory("files")
+        .await.map_err(|e| format!("Failed to create directory 'files': {}", e))?;
+
+    let file_name_with_folder = format!("files/{}", file_name);
+    let mut dst = File::create(&file_name_with_folder)
+        .await.map_err(|e| format!("Failed to create file: {:?}", e))?;
+
+    let mut total_bytes = 0u32;
+    let mut interval = interval(Duration::from_secs(2));
+
+    loop {
+        tokio::select! {
+            chunk = stream.next() => {
+                match chunk {
+                    Some(Ok(bytes)) => {
+                        total_bytes += bytes.len() as u32;
+                        dst.write_all(&bytes).await.map_err(|e| e.to_string())?;
+                    }
+                    Some(Err(e)) => {
+                        warn!("Error: {}", e);
+                        return Err("Failed to download the file".to_owned());
+                    }
+                    None => break,
+                }
+            }
+            _ = interval.tick() => {
+                if let Some(size) = total_size {
+                    info!("Downloaded {} of {} bytes", total_bytes, size);
+                } else {
+                    info!("Downloaded {} bytes", total_bytes);
+                }
+            }
+        }
+    }
+
+    Ok(total_bytes)
+}
+
+async fn edit_message_with_file_link(
+    bot: Arc<Bot>,
+    queue_item: &FileQueueItem,
+    file_name: &str,
+    file_size: u32,
+) -> Result<(), String> {
+    let file_domain = Config::instance().await.file_domain();
+    let edit_result = bot.edit_message_text(
+        queue_item.message.chat.id,
+        queue_item.queue_message.id,
+        format!(
+            "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
+            file_size,
+            file_domain,
+            file_name,
+            file_domain,
+            file_name
+        ),
+    )
+        .parse_mode(ParseMode::Html)
+        .await;
+
+    if edit_result.is_err() {
+        error!("Failed to edit message");
+        return Err("Failed to edit message".to_owned());
+    }
+
+    Ok(())
+}
+
+async fn generate_final_file_name(queue_item: &FileQueueItem, file_path_or_name: &str) -> String {
+    let id = nanoid!(5);
+    let name = queue_item.file_name.as_ref().map(|name| name.to_string().replace(' ', "_"));
+    match name {
+        Some(name) => format!("{}_{}", id, name),
+        None => format!("{}_{}", id, utils::get_file_name_from_path(&file_path_or_name).unwrap()),
+    }
+}
 
 async fn download_and_process_file_from_telegram(
     bot: Arc<Bot>,
@@ -344,100 +427,15 @@ async fn download_and_process_file_from_telegram(
 ) -> Result<(), String> {
     info!("Starting download for file ID: {}", file_id);
 
-    utils::create_directory("files")
-        .await.expect("Failed to create directory 'files'");
-
-    let (file_path, file_size) = match get_file_info(bot.clone(), file_id).await {
-        Ok(info) => { info }
-        Err(_) => { return Err("Failed to get file info".to_owned()); }
-    };
-
+    let (file_path, file_size) = get_file_info(bot.clone(), file_id).await.map_err(|_| "Failed to get file info".to_owned())?;
     info!("File path obtained: {}", &file_path);
 
-    let id = nanoid!(5);
+    let final_file_name = generate_final_file_name(&queue_item, &file_path).await;
 
-    let name = queue_item.file_name.map(|name| {
-        let name = name.to_string();
+    let stream = bot.download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
+    let downloaded_size = create_and_save_file(bot.clone(), &final_file_name, stream, Some(file_size)).await?;
 
-        name.replace(' ', "_")
-    });
-
-    let final_file_name = match name {
-        Some(name) => format!("{}_{}", id, name),
-        None => format!("{}_{}", id, utils::get_file_name_from_path(&file_path).unwrap()),
-    };
-
-    let file_name_with_folder = format!("files/{}", final_file_name);
-
-    debug!("File path obtained: {}", &file_path);
-
-    match File::create(&file_name_with_folder).await {
-        Ok(mut dst) => {
-            let mut stream = bot.download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
-
-            let mut interval = interval(Duration::from_secs(2));
-            let mut total_bytes = 0;
-
-            loop {
-                tokio::select! {
-                    chunk = stream.next() => {
-                        match chunk {
-                            Some(Ok(bytes)) => {
-                                total_bytes += bytes.len();
-                                dst.write_all(&bytes).await.map_err(|e| e.to_string())?;
-                            }
-                            Some(Err(e)) => {
-                                warn!("Error: {}", e);
-
-                                return Err("Failed to download the file".to_owned().into());
-                            }
-                            None => break,
-                        }
-                    }
-                    _ = interval.tick() => {
-                        info!("Downloaded {} of {} bytes", total_bytes, file_size);
-                    }
-                }
-            }
-
-            let file_size = utils::get_file_size(&file_name_with_folder).await.unwrap_or(file_size as u64);
-
-            info!("File saved: {:?}", final_file_name);
-
-            let file_domain = Config::instance().await.file_domain();
-
-            let edit_result = bot.edit_message_text(
-                queue_item.message.chat.id,
-                queue_item.queue_message.id,
-                format!(
-                    "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
-                    file_size,
-                    file_domain,
-                    final_file_name,
-                    file_domain,
-                    final_file_name
-                ),
-            ).parse_mode(ParseMode::Html).await;
-
-            match edit_result {
-                Ok(_) => {
-                    info!("File processed successfully");
-                }
-                Err(_) => {
-                    error!("Failed to edit message");
-                    return Err("Failed to edit message".to_owned().into());
-                }
-            }
-
-            Ok(())
-        }
-
-        Err(e) => {
-            error!("Failed to create file: {:?}", e);
-
-            Err("Failed to create file".to_owned().into())
-        }
-    }
+    edit_message_with_file_link(bot, &queue_item, &final_file_name, downloaded_size).await
 }
 
 async fn download_and_process_file_from_url(
@@ -447,86 +445,25 @@ async fn download_and_process_file_from_url(
 ) -> Result<(), String> {
     info!("Starting download from URL: {}", url);
 
-    if let Err(e) = utils::create_directory("files").await {
-        error!("Failed to create directory 'files': {}", e);
-        return Err("Failed to create directory 'files'".to_owned());
-    }
-
-    let response = reqwest::get(url).await.map_err(|e| {
-        error!("Failed to download file: {}", e);
-        "Failed to download file".to_owned()
-    })?;
+    let response = reqwest::get(url).await.map_err(|e| format!("Failed to download file: {}", e))?;
 
     let content_disposition = response.headers().get(reqwest::header::CONTENT_DISPOSITION);
+    let file_name = content_disposition
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.split("filename=").nth(1))
+        .map(|v| v.trim_matches('"').to_string())
+        .or_else(|| url.split('/').last().map(|name| name.to_string()))
+        .filter(|name| !name.is_empty())
+        .ok_or("Could not determine file name")?;
 
-    let file_name = if let Some(disposition) = content_disposition {
-        disposition.to_str().ok()
-            .and_then(|v| v.split("filename=").nth(1))
-            .map(|v| v.trim_matches('"').to_string())
-    } else {
-        url.split('/').last().map(|name| name.to_string())
-    };
+    let final_file_name = generate_final_file_name(&queue_item, &file_name).await;
 
-    let file_name = match file_name {
-        Some(name) if !name.is_empty() => name,
-        _ => {
-            error!("Could not determine file name");
-            return Err("Could not determine file name".to_owned());
-        }
-    };
+    let stream = response.bytes_stream();
+    let downloaded_size = create_and_save_file(bot.clone(), &final_file_name, stream, None).await?;
 
-    let id = nanoid!(5);
-    let final_file_name = format!("files/{}_{}", id, file_name);
-
-    match File::create(&final_file_name).await {
-        Ok(mut dst) => {
-            let mut stream = response.bytes_stream();
-            let mut total_bytes = 0;
-
-            while let Some(chunk) = stream.next().await {
-                match chunk {
-                    Ok(bytes) => {
-                        total_bytes += bytes.len();
-                        dst.write_all(&bytes).await.map_err(|e| e.to_string())?;
-                    }
-                    Err(e) => {
-                        warn!("Error: {}", e);
-                        return Err("Failed to download the file".to_owned());
-                    }
-                }
-            }
-
-            info!("File saved: {:?}", final_file_name);
-
-            let file_domain = Config::instance().await.file_domain();
-
-            let edit_result = bot.edit_message_text(
-                queue_item.message.chat.id,
-                queue_item.queue_message.id,
-                format!(
-                    "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
-                    total_bytes,
-                    file_domain,
-                    final_file_name,
-                    file_domain,
-                    final_file_name
-                ),
-            ).parse_mode(ParseMode::Html).await;
-
-            if edit_result.is_err() {
-                error!("Failed to edit message");
-                return Err("Failed to edit message".to_owned());
-            }
-
-            info!("File processed successfully");
-            Ok(())
-        }
-        Err(e) => {
-            error!("Failed to create file: {:?}", e);
-            Err("Failed to create file".to_owned())
-        }
-    }
+    edit_message_with_file_link(bot, &queue_item, &final_file_name, downloaded_size).await
 }
+
 
 // #[derive(BotCommands, Clone)]
 // #[command(rename_rule = "lowercase", description = "These commands are supported:")]
@@ -537,35 +474,3 @@ async fn download_and_process_file_from_url(
 //     Url(String),
 // }
 //
-// pub async fn answer_commands(bot: Arc<Bot>, msg: Message, cmd: Command, tx: &Sender<()>) -> Result<(), String> {
-//     match cmd {
-//         Command::Help => {
-//             match bot.send_message(msg.chat.id, Command::descriptions().to_string()).await {
-//                 Ok(_) => {
-//                     info!("Sent help message");
-//                 }
-//                 Err(_) => {
-//                     error!("Failed to send help message");
-//
-//                     return Err("Failed to send help message".to_owned());
-//                 }
-//             }
-//         }
-//         Command::Url(url) => {
-//             info!("Processing URL: {}", url.clone().to_string());
-//
-//             match handle_file(bot.clone(), Arc::new(msg.clone()), Some(url.to_string()), None, None, Arc::new(Default::default()), tx).await {
-//                 Ok(_) => {
-//                     info!("Processed URL: {}", url.clone().to_string());
-//                 }
-//                 Err(_) => {
-//                     error!("Failed to process URL: {}", url.clone().to_string());
-//
-//                     return Err("Failed to process URL".to_owned());
-//                 }
-//             };
-//         }
-//     };
-//
-//     Ok(())
-// }
