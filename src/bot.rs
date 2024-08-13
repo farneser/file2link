@@ -4,8 +4,8 @@ use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::config::Config;
-use crate::utils;
+use core::config::Config;
+use core::utils;
 use futures::{Stream, StreamExt};
 use log::{debug, error, info, warn};
 use nanoid::nanoid;
@@ -142,7 +142,6 @@ fn get_url_from_message(msg: &Message) -> Option<String> {
 
     None
 }
-
 
 pub async fn process_message(
     bot: Arc<Bot>,

@@ -2,24 +2,19 @@ use std::error::Error;
 use std::sync::Arc;
 
 use log::{debug, error, info};
-use teloxide::Bot;
 use teloxide::prelude::Message;
+use teloxide::Bot;
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
-
+use cli::utils::send_command;
 use crate::bot::FileQueueType;
-use crate::cli::cli::send_command;
-use crate::cli::handle_cli;
-use crate::config::Config;
 
 mod bot;
 mod server;
-mod utils;
-mod chat_config;
-mod cli;
-mod config;
+use core::chat_config;
+use core::config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -29,7 +24,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     info!("Starting up...");
 
-    let server_port = Config::instance().await.server_port();
+    let server_port = config::Config::instance().await.server_port();
     info!("Server port: {}", server_port);
 
     let raw_permissions = chat_config::load_config()
@@ -131,7 +126,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
             info!("Received Ctrl+C, shutting down...");
 
-            match send_command(&Config::instance().await.pipe_path(), "shutdown").await {
+            match send_command(&config::Config::instance().await.pipe_path(), "shutdown").await {
                 Ok(_) => info!("Command 'shutdown' sent"),
                 Err(_) => error!("Failed to send shutdown command")
             };
@@ -142,7 +137,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let permissions = Arc::clone(&permissions);
 
         spawn(async move {
-            handle_cli(permissions).await;
+            core::cli_utils::handle_cli(permissions).await;
         })
     };
 

@@ -245,10 +245,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "cli"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "core",
+ "log",
+ "nanoid",
+ "pretty_env_logger",
+ "structopt",
+ "tokio",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
+
+[[package]]
+name = "core"
+version = "0.1.0"
+dependencies = [
+ "dotenv",
+ "libc",
+ "log",
+ "once_cell",
+ "pretty_env_logger",
+ "serde",
+ "serde_json",
+ "tokio",
+]
 
 [[package]]
 name = "core-foundation"
@@ -407,18 +434,17 @@ version = "0.1.1"
 dependencies = [
  "assert_cmd",
  "axum",
- "dotenv",
+ "cli",
+ "core",
  "futures",
  "http 1.1.0",
  "libc",
  "log",
  "mime_guess",
  "nanoid",
- "once_cell",
  "pretty_env_logger",
  "regex",
  "reqwest",
- "serde",
  "serde_json",
  "serial_test",
  "structopt",
@@ -860,9 +886,9 @@ dependencies = [
 
 [[package]]
 name = "log"
-version = "0.4.21"
+version = "0.4.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
+checksum = "a7a70ba024b9dc04c27ea2f0c0548feb474ec5c54bba33a7f72f873a39d07b24"
 
 [[package]]
 name = "matchit"
@@ -1424,11 +1450,12 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.118"
+version = "1.0.124"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d947f6b3163d8857ea16c4fa0dd4840d52f3041039a85decd46867eb1abef2e4"
+checksum = "66ad62847a56b3dba58cc891acd13884b9c61138d330c0d7b6181713d4fce38d"
 dependencies = [
  "itoa",
+ "memchr",
  "ryu",
  "serde",
 ]
