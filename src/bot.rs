@@ -1,45 +1,55 @@
 use std::error::Error;
+use std::fmt::Display;
 use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::config::Config;
+use crate::utils;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
 use nanoid::nanoid;
+use regex::Regex;
 use reqwest::{Client, Url};
-use teloxide::{Bot, prelude::*};
 use teloxide::net::Download;
 use teloxide::types::ParseMode;
+use teloxide::{prelude::*, Bot};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
 
-use crate::config::Config;
-use crate::utils;
-
 #[derive(Debug, Clone)]
 pub struct FileQueueItem {
     message: Arc<Message>,
     queue_message: Arc<Message>,
-    file_id: String,
+    file_id: Option<String>,
     file_name: Option<String>,
+    url: Option<String>,
 }
 
 impl FileQueueItem {
     pub fn new(
         message: Arc<Message>,
         queue_message: Arc<Message>,
-        file_id: String,
+        file_id: Option<String>,
         file_name: Option<String>,
+        url: Option<String>,
     ) -> Self {
         Self {
             message,
             queue_message,
             file_id,
             file_name,
+            url,
         }
+    }
+}
+
+impl Display for FileQueueItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "FileQueueItem {{ message: {:?}, queue_message: {:?}, file_id: {:?}, file_name: {:?}, url: {:?} }}", self.message, self.queue_message, self.file_id, self.file_name, self.url)
     }
 }
 
@@ -90,6 +100,49 @@ pub async fn get_bot() -> Result<Bot, String> {
     Ok(bot)
 }
 
+/// Get URL from a message
+/// Returns the first URL found in the message
+/// If the message starts with "/url", it will return the URL from the reply message
+/// If the message starts with "/url <URL>", it will return the URL
+/// If no URL is found, it will return None
+///
+/// # Arguments
+/// * `msg` - Message
+/// # Returns
+/// * `Option<String>` containing the URL
+/// * `None` if no URL is found
+/// # Example
+fn get_url_from_message(msg: &Message) -> Option<String> {
+    fn extract_first_link(text: &str) -> Option<String> {
+        let link_regex = Regex::new(r"https?://\S+").unwrap();
+
+        if let Some(mat) = link_regex.find(text) {
+            Some(mat.as_str().to_string())
+        } else {
+            None
+        }
+    }
+
+    if let Some(text) = msg.text() {
+        if text.starts_with("/url") {
+            if text.len() < 6 {
+                if let Some(reply) = msg.reply_to_message() {
+                    if let Some(reply_text) = reply.text() {
+                        return extract_first_link(reply_text);
+                    }
+                }
+            } else {
+                let url_text = &text[5..];
+
+                return extract_first_link(url_text);
+            }
+        }
+    }
+
+    None
+}
+
+
 pub async fn process_message(
     bot: Arc<Bot>,
     msg: Message,
@@ -98,47 +151,45 @@ pub async fn process_message(
 ) -> Result<(), Box<dyn Error>> {
     let msg_copy = Arc::new(msg.clone());
 
-    async fn process_file(
-        bot: Arc<Bot>,
-        msg_copy: Arc<Message>,
-        file_id: String,
-        file_name: Option<String>,
-        file_queue: FileQueueType,
-        tx: Sender<()>,
-    ) -> Result<(), Box<dyn Error>> {
-        handle_file(bot, msg_copy, file_id, file_name, file_queue, tx)
-            .await.expect("Failed to handle file");
-        Ok(())
-    }
-
     let file_info = if let Some(document) = msg_copy.document() {
         info!("Processing document file with ID: {}", document.file.id);
 
-        Some((document.file.id.clone(), document.file_name.clone()))
+        Some((Some(document.file.id.clone()), document.file_name.clone(), None))
     } else if let Some(photo) = msg_copy.photo().and_then(|p| p.last()) {
         info!("Processing photo file with ID: {}", photo.file.id);
 
-        Some((photo.file.id.clone(), None))
+        Some((Some(photo.file.id.clone()), None, None))
     } else if let Some(video) = msg_copy.video() {
         info!("Processing video file with ID: {}", video.file.id);
 
-        Some((video.file.id.clone(), video.file_name.clone()))
+        Some((Some(video.file.id.clone()), video.file_name.clone(), None))
     } else if let Some(animation) = msg_copy.animation() {
         info!("Processing animation file with ID: {}", animation.file.id);
 
-        Some((animation.file.id.clone(), animation.file_name.clone()))
+        Some((Some(animation.file.id.clone()), animation.file_name.clone(), None))
+    } else if let Some(text) = msg_copy.text() {
+        if text.starts_with("/url") {
+            if let Some(url) = get_url_from_message(&msg_copy) {
+                Some((None, None, Some(url)))
+            } else {
+                None
+            }
+        } else {
+            None
+        }
     } else {
         None
     };
 
-    if let Some((file_id, file_name)) = file_info {
-        process_file(
+    if let Some((file_id, file_name, url)) = file_info {
+        handle_file(
             bot.clone(),
             msg_copy.clone(),
             file_id,
             file_name,
+            url,
             file_queue,
-            tx,
+            &tx,
         ).await.expect("Failed to process file");
     } else {
         debug!("Received a non-file message");
@@ -150,10 +201,11 @@ pub async fn process_message(
 async fn handle_file(
     bot: Arc<Bot>,
     msg: Arc<Message>,
-    file_id: String,
+    file_id: Option<String>,
     file_name: Option<String>,
+    url: Option<String>,
     file_queue: FileQueueType,
-    tx: Sender<()>,
+    tx: &Sender<()>,
 ) -> Result<(), Box<dyn Error>> {
     {
         let mut queue = file_queue.lock().await;
@@ -166,9 +218,9 @@ async fn handle_file(
 
         let queue_message_clone = Arc::new(queue_message);
 
-        queue.push(FileQueueItem::new(msg.clone(), queue_message_clone, file_id.clone(), file_name.clone()));
+        queue.push(FileQueueItem::new(msg.clone(), queue_message_clone, file_id.clone(), file_name.clone(), url.clone()));
 
-        info!("Added file with ID {} to queue. Current queue position: {}", file_id, position);
+        info!("Added item to queue. Current queue position: {}", position);
     }
 
     tx.send(()).await?;
@@ -191,6 +243,8 @@ pub async fn process_queue(
                 continue;
             }
         };
+
+        debug!("Processing file: {:?}", queue_item);
 
         const MAX_ATTEMPTS: u32 = 3;
 
@@ -215,10 +269,21 @@ pub async fn process_queue(
             }
         }
 
-        if let Err(e) = download_and_process_file(
-            bot.clone(),
-            queue_item.clone(),
-        ).await {
+        if let Err(e) = if let Some(url) = &queue_item.url {
+            download_and_process_file_from_url(
+                bot.clone(),
+                queue_item.clone(),
+                url,
+            ).await
+        } else if let Some(file_id) = &queue_item.file_id {
+            download_and_process_file_from_telegram(
+                bot.clone(),
+                queue_item.clone(),
+                file_id,
+            ).await
+        } else {
+            Err("No file_id or url found".to_string())
+        } {
             error!("Failed to process file: {}", e);
             continue;
         }
@@ -237,10 +302,9 @@ pub async fn process_queue(
             ).await.expect("Failed to edit message");
         }
 
-        info!("Removed file from queue. Remaining files in queue: {}", queue.len());
+        info!("Removed item from queue. Remaining items in queue: {}", queue.len());
     })
 }
-
 
 /// Get file info from Telegram
 ///
@@ -273,16 +337,17 @@ async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), Stri
     unreachable!()
 }
 
-async fn download_and_process_file(
+async fn download_and_process_file_from_telegram(
     bot: Arc<Bot>,
     queue_item: FileQueueItem,
+    file_id: &String,
 ) -> Result<(), String> {
-    info!("Starting download for file ID: {}", queue_item.file_id);
+    info!("Starting download for file ID: {}", file_id);
 
     utils::create_directory("files")
         .await.expect("Failed to create directory 'files'");
 
-    let (file_path, file_size) = match get_file_info(bot.clone(), &queue_item.file_id).await {
+    let (file_path, file_size) = match get_file_info(bot.clone(), file_id).await {
         Ok(info) => { info }
         Err(_) => { return Err("Failed to get file info".to_owned()); }
     };
@@ -374,3 +439,133 @@ async fn download_and_process_file(
         }
     }
 }
+
+async fn download_and_process_file_from_url(
+    bot: Arc<Bot>,
+    queue_item: FileQueueItem,
+    url: &String,
+) -> Result<(), String> {
+    info!("Starting download from URL: {}", url);
+
+    if let Err(e) = utils::create_directory("files").await {
+        error!("Failed to create directory 'files': {}", e);
+        return Err("Failed to create directory 'files'".to_owned());
+    }
+
+    let response = reqwest::get(url).await.map_err(|e| {
+        error!("Failed to download file: {}", e);
+        "Failed to download file".to_owned()
+    })?;
+
+    let content_disposition = response.headers().get(reqwest::header::CONTENT_DISPOSITION);
+
+    let file_name = if let Some(disposition) = content_disposition {
+        disposition.to_str().ok()
+            .and_then(|v| v.split("filename=").nth(1))
+            .map(|v| v.trim_matches('"').to_string())
+    } else {
+        url.split('/').last().map(|name| name.to_string())
+    };
+
+    let file_name = match file_name {
+        Some(name) if !name.is_empty() => name,
+        _ => {
+            error!("Could not determine file name");
+            return Err("Could not determine file name".to_owned());
+        }
+    };
+
+    let id = nanoid!(5);
+    let final_file_name = format!("files/{}_{}", id, file_name);
+
+    match File::create(&final_file_name).await {
+        Ok(mut dst) => {
+            let mut stream = response.bytes_stream();
+            let mut total_bytes = 0;
+
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(bytes) => {
+                        total_bytes += bytes.len();
+                        dst.write_all(&bytes).await.map_err(|e| e.to_string())?;
+                    }
+                    Err(e) => {
+                        warn!("Error: {}", e);
+                        return Err("Failed to download the file".to_owned());
+                    }
+                }
+            }
+
+            info!("File saved: {:?}", final_file_name);
+
+            let file_domain = Config::instance().await.file_domain();
+
+            let edit_result = bot.edit_message_text(
+                queue_item.message.chat.id,
+                queue_item.queue_message.id,
+                format!(
+                    "Downloaded. Size: {} bytes\n\n<b><a href=\"{}{}\">{}{}</a></b>",
+                    total_bytes,
+                    file_domain,
+                    final_file_name,
+                    file_domain,
+                    final_file_name
+                ),
+            ).parse_mode(ParseMode::Html).await;
+
+            if edit_result.is_err() {
+                error!("Failed to edit message");
+                return Err("Failed to edit message".to_owned());
+            }
+
+            info!("File processed successfully");
+            Ok(())
+        }
+        Err(e) => {
+            error!("Failed to create file: {:?}", e);
+            Err("Failed to create file".to_owned())
+        }
+    }
+}
+
+// #[derive(BotCommands, Clone)]
+// #[command(rename_rule = "lowercase", description = "These commands are supported:")]
+// enum Command {
+//     #[command(description = "display this text.")]
+//     Help,
+//     #[command(description = "download a file from the URL.")]
+//     Url(String),
+// }
+//
+// pub async fn answer_commands(bot: Arc<Bot>, msg: Message, cmd: Command, tx: &Sender<()>) -> Result<(), String> {
+//     match cmd {
+//         Command::Help => {
+//             match bot.send_message(msg.chat.id, Command::descriptions().to_string()).await {
+//                 Ok(_) => {
+//                     info!("Sent help message");
+//                 }
+//                 Err(_) => {
+//                     error!("Failed to send help message");
+//
+//                     return Err("Failed to send help message".to_owned());
+//                 }
+//             }
+//         }
+//         Command::Url(url) => {
+//             info!("Processing URL: {}", url.clone().to_string());
+//
+//             match handle_file(bot.clone(), Arc::new(msg.clone()), Some(url.to_string()), None, None, Arc::new(Default::default()), tx).await {
+//                 Ok(_) => {
+//                     info!("Processed URL: {}", url.clone().to_string());
+//                 }
+//                 Err(_) => {
+//                     error!("Failed to process URL: {}", url.clone().to_string());
+//
+//                     return Err("Failed to process URL".to_owned());
+//                 }
+//             };
+//         }
+//     };
+//
+//     Ok(())
+// }
