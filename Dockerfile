@@ -12,6 +12,10 @@ RUN cargo build --release
 
 FROM ubuntu as run
 
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY --from=build /build/target/release/file2link /app/file2link
