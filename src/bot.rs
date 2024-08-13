@@ -4,21 +4,21 @@ use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::config::Config;
+use crate::utils;
 use futures::StreamExt;
 use log::{debug, error, info, warn};
 use nanoid::nanoid;
+use regex::Regex;
 use reqwest::{Client, Url};
-use teloxide::{Bot, prelude::*};
 use teloxide::net::Download;
 use teloxide::types::ParseMode;
+use teloxide::{prelude::*, Bot};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::sync::Mutex;
 use tokio::time::{interval, sleep};
-
-use crate::config::Config;
-use crate::utils;
 
 #[derive(Debug, Clone)]
 pub struct FileQueueItem {
@@ -100,6 +100,49 @@ pub async fn get_bot() -> Result<Bot, String> {
     Ok(bot)
 }
 
+/// Get URL from a message
+/// Returns the first URL found in the message
+/// If the message starts with "/url", it will return the URL from the reply message
+/// If the message starts with "/url <URL>", it will return the URL
+/// If no URL is found, it will return None
+///
+/// # Arguments
+/// * `msg` - Message
+/// # Returns
+/// * `Option<String>` containing the URL
+/// * `None` if no URL is found
+/// # Example
+fn get_url_from_message(msg: &Message) -> Option<String> {
+    fn extract_first_link(text: &str) -> Option<String> {
+        let link_regex = Regex::new(r"https?://\S+").unwrap();
+
+        if let Some(mat) = link_regex.find(text) {
+            Some(mat.as_str().to_string())
+        } else {
+            None
+        }
+    }
+
+    if let Some(text) = msg.text() {
+        if text.starts_with("/url") {
+            if text.len() < 6 {
+                if let Some(reply) = msg.reply_to_message() {
+                    if let Some(reply_text) = reply.text() {
+                        return extract_first_link(reply_text);
+                    }
+                }
+            } else {
+                let url_text = &text[5..];
+
+                return extract_first_link(url_text);
+            }
+        }
+    }
+
+    None
+}
+
+
 pub async fn process_message(
     bot: Arc<Bot>,
     msg: Message,
@@ -126,16 +169,8 @@ pub async fn process_message(
         Some((Some(animation.file.id.clone()), animation.file_name.clone(), None))
     } else if let Some(text) = msg_copy.text() {
         if text.starts_with("/url") {
-            let url_text = &text[5..].to_string();
-
-            info!("Processing URL: {}", url_text);
-
-            if let Ok(url) = Url::parse(url_text) {
-                info!("Processing URL: {}", url);
-
-                // answer_commands(bot.clone(), msg.clone(), Command::Url(url.to_string()), &tx).await.expect("Failed to answer command");
-
-                Some((None, None, Some(url.to_string())))
+            if let Some(url) = get_url_from_message(&msg_copy) {
+                Some((None, None, Some(url)))
             } else {
                 None
             }
