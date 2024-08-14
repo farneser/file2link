@@ -590,6 +590,7 @@ dependencies = [
  "mime_guess",
  "pretty_env_logger",
  "shared",
+ "structopt",
  "tokio",
 ]
 
