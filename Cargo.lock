@@ -285,20 +285,14 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 name = "bot"
 version = "0.1.0"
 dependencies = [
- "axum 0.7.5",
  "cli",
  "core",
  "futures",
- "http 1.1.0",
- "libc",
  "log",
- "mime_guess",
  "nanoid",
  "pretty_env_logger",
  "regex",
  "reqwest",
- "serde_json",
- "structopt",
  "teloxide",
  "tokio",
  "tokio-util",
@@ -603,20 +597,12 @@ dependencies = [
  "bot",
  "cli",
  "core",
- "futures",
  "http 1.1.0",
- "libc",
  "log",
  "mime_guess",
- "nanoid",
  "pretty_env_logger",
- "regex",
- "reqwest",
- "serde_json",
  "serial_test",
- "structopt",
  "tokio",
- "tokio-util",
 ]
 
 [[package]]
