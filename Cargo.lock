@@ -602,6 +602,7 @@ dependencies = [
  "mime_guess",
  "pretty_env_logger",
  "serial_test",
+ "structopt",
  "tokio",
 ]
 

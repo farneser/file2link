@@ -1,6 +1,6 @@
 use std::error::Error;
 
-use log::{error};
+use log::error;
 use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 

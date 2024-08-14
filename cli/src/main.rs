@@ -1,10 +1,7 @@
 use std::error::Error;
-use std::os::unix::fs::FileTypeExt;
 
-use crate::utils::send_command;
 use cli::Cli;
 use structopt::StructOpt;
-use tokio::io::AsyncWriteExt;
 
 pub mod utils;
 
