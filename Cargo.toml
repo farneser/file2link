@@ -8,6 +8,10 @@ members = [
     "cli",
 ]
 
+[[bin]]
+name = "f2l-cli"
+path = "cli/src/main.rs"
+
 [dependencies]
 log = "0.4"
 pretty_env_logger = "0.5.0"
@@ -20,6 +24,6 @@ cli = { path = "cli" }
 shared = { path = "shared" }
 bot = { path = "bot" }
 
-[[bin]]
-name = "f2l-cli"
-path = "cli/src/main.rs"
+[dev-dependencies]
+assert_cmd = "2.0.8"
+serial_test = "3.1.1"
