@@ -27,15 +27,74 @@ jobs:
             target/release/file2link
             target/release/f2l-cli
 
-  test:
+  test_main:
     runs-on: ubuntu-latest
     needs: build
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run build
+      - name: Download Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: File2Link binaries
+
+      - name: Run build for main
         run: cargo build --release
 
-      - name: Run tests
+      - name: Run tests for main
         run: cargo test --release
+
+  test_shared:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: File2Link binaries
+
+      - name: Run build for shared
+        run: cargo build --manifest-path shared/Cargo.toml --release
+
+      - name: Run tests for shared
+        run: cargo test --manifest-path shared/Cargo.toml --release
+
+  test_cli:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: File2Link binaries
+
+      - name: Run build for cli
+        run: cargo build --manifest-path cli/Cargo.toml --release
+
+      - name: Run tests for cli
+        run: cargo test --manifest-path cli/Cargo.toml --release
+
+  test_bot:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Binaries
+        uses: actions/download-artifact@v3
+        with:
+          name: File2Link binaries
+
+      - name: Run build for bot
+        run: cargo build --manifest-path bot/Cargo.toml --release
+
+      - name: Run tests for crate3
+        run: cargo test --manifest-path bot/Cargo.toml --release
