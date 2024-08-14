@@ -27,3 +27,4 @@ bot = { path = "bot" }
 [dev-dependencies]
 assert_cmd = "2.0.8"
 serial_test = "3.1.1"
+nanoid = "0.4.0"
