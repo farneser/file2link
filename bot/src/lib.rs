@@ -1,19 +1,21 @@
+pub mod bot;
+
 use std::error::Error;
 use std::fmt::Display;
-use std::process;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::bot::{TeloxideBot};
 use core::config::Config;
 use core::utils;
 use futures::{Stream, StreamExt};
 use log::{debug, error, info, warn};
 use nanoid::nanoid;
 use regex::Regex;
-use reqwest::{Client, Url};
 use teloxide::net::Download;
+use teloxide::payloads::{EditMessageTextSetters, SendMessageSetters};
+use teloxide::prelude::{Message, Requester};
 use teloxide::types::ParseMode;
-use teloxide::{prelude::*, Bot};
 use tokio::fs::File;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -55,51 +57,6 @@ impl Display for FileQueueItem {
 }
 
 pub type FileQueueType = Arc<Mutex<Vec<FileQueueItem>>>;
-
-pub async fn get_bot() -> Result<Bot, String> {
-    let token = match Config::instance().await.bot_token() {
-        Ok(token) => token,
-        Err(e) => {
-            error!("Failed to fetch bot token: {}", e);
-
-            process::exit(1);
-        }
-    };
-
-    let api_url = Config::instance().await.telegram_api_url();
-
-    let url = match Url::parse(&api_url) {
-        Ok(url) => Some(url),
-        Err(e) => {
-            error!("Failed to parse API_URL: {}", e);
-
-            return Err("Failed to parse API_URL".to_owned());
-        }
-    };
-
-    let client = match Client::builder()
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(300))
-        .tcp_nodelay(true)
-        .build() {
-        Ok(client) => client,
-        Err(e) => {
-            error!("Failed to create client: {}", e);
-
-            return Err("Failed to create client".to_owned());
-        }
-    };
-
-    let mut bot = Bot::with_client(token, client);
-
-    if let Some(url) = url {
-        info!("API URL: {}", url.to_string().to_owned());
-
-        bot = bot.set_api_url(url);
-    }
-
-    Ok(bot)
-}
 
 /// Get URL from a message
 /// Returns the first URL found in the message
@@ -144,7 +101,7 @@ fn get_url_from_message(msg: &Message) -> Option<String> {
 }
 
 pub async fn process_message(
-    bot: Arc<Bot>,
+    bot: Arc<teloxide::Bot>,
     msg: Message,
     file_queue: FileQueueType,
     tx: Sender<()>,
@@ -199,7 +156,7 @@ pub async fn process_message(
 }
 
 async fn handle_file(
-    bot: Arc<Bot>,
+    bot: Arc<teloxide::Bot>,
     msg: Arc<Message>,
     file_id: Option<String>,
     file_name: Option<String>,
@@ -229,7 +186,7 @@ async fn handle_file(
 }
 
 pub async fn process_queue(
-    bot: Arc<Bot>,
+    bot: Arc<TeloxideBot>,
     file_queue: FileQueueType,
     mut rx: Receiver<()>,
 ) -> Result<(), Box<dyn Error>> {
@@ -249,7 +206,7 @@ pub async fn process_queue(
         const MAX_ATTEMPTS: u32 = 3;
 
         for attempt in 1..=MAX_ATTEMPTS {
-            match bot.edit_message_text(
+            match bot.get_teloxide_bot().edit_message_text(
                 queue_item.message.chat.id,
                 queue_item.queue_message.id,
                 "Processing file...",
@@ -295,7 +252,7 @@ pub async fn process_queue(
         if let Some(front) = queue.first() {
             let queue_item = front.clone();
 
-            bot.edit_message_text(
+            bot.get_teloxide_bot().edit_message_text(
                 queue_item.queue_message.chat.id,
                 queue_item.queue_message.id,
                 format!("File processed. Remaining files in queue: {}", queue.len()),
@@ -314,11 +271,11 @@ pub async fn process_queue(
 /// # Returns
 /// * `Result` containing a tuple of file path and file size
 /// * `String` containing an error message
-async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), String> {
+async fn get_file_info(bot: Arc<TeloxideBot>, id: &String) -> Result<(String, u32), String> {
     const MAX_ATTEMPTS: u32 = 3;
 
     for attempt in 1..=MAX_ATTEMPTS {
-        match bot.clone().get_file(id).await {
+        match bot.get_teloxide_bot().get_file(id).await {
             Ok(info) => return Ok((info.clone().path, info.size)),
             Err(e) => {
                 if attempt == MAX_ATTEMPTS {
@@ -337,7 +294,7 @@ async fn get_file_info(bot: Arc<Bot>, id: &String) -> Result<(String, u32), Stri
     unreachable!()
 }
 async fn create_and_save_file(
-    bot: Arc<Bot>,
+    bot: Arc<TeloxideBot>,
     file_name: &str,
     mut stream: impl Stream<Item=Result<Bytes, reqwest::Error>> + Unpin,
     total_size: Option<u32>,
@@ -381,13 +338,13 @@ async fn create_and_save_file(
 }
 
 async fn edit_message_with_file_link(
-    bot: Arc<Bot>,
+    bot: Arc<TeloxideBot>,
     queue_item: &FileQueueItem,
     file_name: &str,
     file_size: u32,
 ) -> Result<(), String> {
     let file_domain = Config::instance().await.file_domain();
-    let edit_result = bot.edit_message_text(
+    let edit_result = bot.get_teloxide_bot().edit_message_text(
         queue_item.message.chat.id,
         queue_item.queue_message.id,
         format!(
@@ -420,25 +377,33 @@ async fn generate_final_file_name(queue_item: &FileQueueItem, file_path_or_name:
 }
 
 async fn download_and_process_file_from_telegram(
-    bot: Arc<Bot>,
+    bot: Arc<TeloxideBot>,
     queue_item: FileQueueItem,
     file_id: &String,
 ) -> Result<(), String> {
     info!("Starting download for file ID: {}", file_id);
 
-    let (file_path, file_size) = get_file_info(bot.clone(), file_id).await.map_err(|_| "Failed to get file info".to_owned())?;
+    let (file_path, file_size) = get_file_info(bot.clone(), file_id)
+        .await.map_err(|_| "Failed to get file info".to_owned())?;
     info!("File path obtained: {}", &file_path);
 
     let final_file_name = generate_final_file_name(&queue_item, &file_path).await;
 
-    let stream = bot.download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
-    let downloaded_size = create_and_save_file(bot.clone(), &final_file_name, stream, Some(file_size)).await?;
+    let stream = bot.get_teloxide_bot()
+        .download_file_stream(&utils::get_folder_and_file_name(&file_path).unwrap());
+
+    let downloaded_size = create_and_save_file(
+        bot.clone(),
+        &final_file_name,
+        stream,
+        Some(file_size),
+    ).await?;
 
     edit_message_with_file_link(bot, &queue_item, &final_file_name, downloaded_size).await
 }
 
 async fn download_and_process_file_from_url(
-    bot: Arc<Bot>,
+    bot: Arc<TeloxideBot>,
     queue_item: FileQueueItem,
     url: &String,
 ) -> Result<(), String> {

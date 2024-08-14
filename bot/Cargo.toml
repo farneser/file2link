@@ -1,11 +1,11 @@
 [package]
-name = "file2link"
-version = "0.1.1"
+name = "bot"
+version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+log = "0.4.22"
 teloxide = { version = "0.12", features = ["macros"] }
-log = "0.4"
 pretty_env_logger = "0.5.0"
 tokio = { version = "1.38.0", features = ["full"] }
 reqwest = { version = "0.11.10", features = ["json"] }
@@ -19,14 +19,5 @@ libc = "0.2.155"
 structopt = "0.3.26"
 tokio-util = "0.7.11"
 regex = "1.10.5"
-cli = { path = "cli" }
-core = { path = "core" }
-bot = { path = "bot" }
-
-[dev-dependencies]
-assert_cmd = "2.0.8"
-serial_test = "3.1.1"
-#
-#[[bin]]
-#name = "f2l-cli"
-#path = "cli/src/main.rs"
+cli = { path = "../cli" }
+core = { path = "../core" }

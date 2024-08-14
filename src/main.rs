@@ -1,17 +1,16 @@
+use bot::process_queue;
 use std::error::Error;
 use std::sync::Arc;
 
-use log::{debug, error, info};
-use teloxide::prelude::Message;
-use teloxide::Bot;
+use bot::bot::{Bot as BotTrait, TeloxideBot};
+use bot::FileQueueType;
+use cli::utils::send_command;
+use log::{error, info};
 use tokio::net::TcpListener;
 use tokio::signal;
 use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
-use cli::utils::send_command;
-use crate::bot::FileQueueType;
 
-mod bot;
 mod server;
 use core::chat_config;
 use core::config;
@@ -32,71 +31,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let permissions = Arc::new(Mutex::new(raw_permissions));
 
-    let bot = match bot::get_bot().await {
-        Ok(bot) => bot,
-        Err(e) => {
-            error!("Failed to create bot: {}", e);
-
-            return Err("Failed to create bot".into());
-        }
-    };
+    let bot = TeloxideBot::new(config::Config::instance().await, permissions, Arc::new(Mutex::new(Vec::new())));
 
     let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::new()));
 
     let (tx, rx) = mpsc::channel(100);
 
     let bot_task = {
-        let file_queue = Arc::clone(&file_queue);
-        let permissions = Arc::clone(&permissions);
         let tx = tx.clone();
-        let bot = bot.clone();
+        // let bot = Arc::clone(&bot);
 
         spawn(async move {
-            teloxide::repl(bot, move |bot: Bot, msg: Message| {
-                debug!("Received message: {:?}", msg);
-
-                let bot = Arc::new(bot);
-                let bot_clone = Arc::clone(&bot);
-                let permissions = Arc::clone(&permissions);
-                let file_queue = Arc::clone(&file_queue);
-                let tx = tx.clone();
-
-                async move {
-                    let permissions = permissions.lock().await;
-
-                    let from = match msg.from() {
-                        Some(from) => from,
-                        None => {
-                            info!("Message does not have a sender");
-
-                            return Ok(());
-                        }
-                    };
-
-                    if !permissions.user_has_access(msg.chat.id.to_string(), &from.id.to_string()) {
-                        info!("User {} does not have access to chat {}",  msg.from().unwrap().id, msg.clone().chat.id);
-
-                        return Ok(());
-                    }
-
-                    info!("User {} has access to chat {}", msg.from().unwrap().id, msg.clone().chat.id);
-
-                    if let Err(e) = bot::process_message(bot_clone, msg.clone(), file_queue, tx).await {
-                        error!("Failed to process message: {}", e);
-                    }
-
-                    Ok(())
-                }
-            }).await;
+            bot.run(tx).await;
         })
     };
 
     let queue_processor_task = {
         let file_queue: FileQueueType = Arc::clone(&file_queue);
-        let bot = Arc::new(bot.clone());
+
+        let bot = Arc::clone(bot);
 
         spawn(async move {
-            if let Err(e) = bot::process_queue(bot, file_queue, rx).await {
+            if let Err(e) = process_queue(bot, file_queue, rx).await {
                 error!("Failed to process queue: {}", e);
             }
         })
