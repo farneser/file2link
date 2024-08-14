@@ -1,10 +1,9 @@
 [package]
 name = "file2link"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 
 [dependencies]
-teloxide = { version = "0.12", features = ["macros"] }
 log = "0.4"
 pretty_env_logger = "0.5.0"
 tokio = { version = "1.38.0", features = ["full"] }
@@ -26,7 +25,7 @@ bot = { path = "bot" }
 [dev-dependencies]
 assert_cmd = "2.0.8"
 serial_test = "3.1.1"
-#
-#[[bin]]
-#name = "f2l-cli"
-#path = "cli/src/main.rs"
+
+[[bin]]
+name = "f2l-cli"
+path = "cli/src/main.rs"

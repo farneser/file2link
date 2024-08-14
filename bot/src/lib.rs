@@ -294,7 +294,7 @@ async fn get_file_info(bot: Arc<TeloxideBot>, id: &String) -> Result<(String, u3
     unreachable!()
 }
 async fn create_and_save_file(
-    bot: Arc<TeloxideBot>,
+    _bot: Arc<TeloxideBot>,
     file_name: &str,
     mut stream: impl Stream<Item=Result<Bytes, reqwest::Error>> + Unpin,
     total_size: Option<u32>,

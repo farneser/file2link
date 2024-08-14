@@ -31,7 +31,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let permissions = Arc::new(Mutex::new(raw_permissions));
 
-    let bot = TeloxideBot::new(config::Config::instance().await, permissions, Arc::new(Mutex::new(Vec::new())));
+    let bot = TeloxideBot::new(config::Config::instance().await, permissions.clone(), Arc::new(Mutex::new(Vec::new())));
+
+    let bot_clone = Arc::new(bot);
 
     let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::new()));
 
@@ -39,7 +41,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let bot_task = {
         let tx = tx.clone();
-        // let bot = Arc::clone(&bot);
+        let bot = Arc::clone(&bot_clone);
 
         spawn(async move {
             bot.run(tx).await;
@@ -49,7 +51,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let queue_processor_task = {
         let file_queue: FileQueueType = Arc::clone(&file_queue);
 
-        let bot = Arc::clone(bot);
+        let bot = Arc::clone(&bot_clone);
 
         spawn(async move {
             if let Err(e) = process_queue(bot, file_queue, rx).await {

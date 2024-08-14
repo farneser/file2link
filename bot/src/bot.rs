@@ -56,10 +56,10 @@ impl Bot for TeloxideBot {
         let permissions = Arc::clone(&self.permissions);
         let bot = self.teloxide_bot.clone();
 
-        teloxide::repl(bot, move |bot: teloxide::Bot, msg: Message| {
+        teloxide::repl(bot.clone(), move |msg: Message| {
             debug!("Received message: {:?}", msg);
 
-            let bot = Arc::new(bot);
+            let bot = Arc::clone(&bot);
             let bot_clone = Arc::clone(&bot);
             let permissions = Arc::clone(&permissions);
             let file_queue = Arc::clone(&file_queue);
