@@ -19,6 +19,39 @@ receive a download link. Use it for file sharing or for quick file transfers to 
 
 - **File Sharing:** Quickly share documents, images, or videos with friends and colleagues.
 - **Data Transfer to Server:** Upload files for backup or further processing.
+- **Download files from http** - You can download files to the server by sending a link to the bot.
+
+### 📥 **Send a File to the Bot:**
+
+1. **Send a File:**
+
+   Send a file to the bot by attaching it to a message. The bot will save the file on the server.
+
+2. **Receive the Download Link:**
+
+   After the file is uploaded, the bot will provide you with a unique link to download the file.
+
+![Send a File](docs/images/send_file.png)
+
+### 📤 **Download Files from HTTP:**
+
+1. **Send a Link:**
+
+   Use /url command to send a link to the bot. The bot will download the file to the server.
+
+   Example:
+    ```text
+    /url https://example.com/file.zip
+    ```
+   ![Download Files from HTTP](docs/images/send_link.png)
+
+   Or reply for the message with the link.
+
+   ![Download Files from HTTP](docs/images/send_link_reply.png)
+
+2. **Receive the Download Link:**
+
+   After the file is downloaded, the bot will provide you with a unique link to download the file.
 
 ## 🧩 **Installation and Setup**
 
@@ -70,7 +103,7 @@ Here's a breakdown of each environment variable:
   APP_FILE_DOMAIN=https://domain.com/files
   ```
 
-  **Note:** This variable is used to generate a link to the file.  
+  **Note:** This variable is used to generate a link to the file.
 
 - **`TELEGRAM_API_URL`**: The URL of the Telegram API server. If you are running the API server in Docker, it’s
   usually the name of the Docker service.

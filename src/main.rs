@@ -31,7 +31,9 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let permissions = Arc::new(Mutex::new(raw_permissions));
 
-    let bot = match TeloxideBot::new(config::Config::instance().await, permissions.clone(), Arc::new(Mutex::new(Vec::new()))) {
+    let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::new()));
+
+    let bot = match TeloxideBot::new(config::Config::instance().await, permissions.clone(), file_queue.clone()) {
         Ok(bot) => bot,
         Err(e) => {
             error!("Failed to create bot: {}", e);
@@ -41,8 +43,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
     };
 
     let bot_clone = Arc::new(bot);
-
-    let file_queue: FileQueueType = Arc::new(Mutex::new(Vec::new()));
 
     let (tx, rx) = mpsc::channel(100);
 
