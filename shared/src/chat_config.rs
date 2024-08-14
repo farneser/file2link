@@ -31,7 +31,7 @@ pub struct PermissionsConfig {
 }
 
 impl PermissionsConfig {
-    fn init_allow_all() -> Self {
+    pub fn init_allow_all() -> Self {
         PermissionsConfig {
             allow_all: UsersConfig::StringUsers("*".to_string()),
             chats: HashMap::new(),

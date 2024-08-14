@@ -19,7 +19,7 @@ pub struct Config {
 static INSTANCE: Lazy<RwLock<Option<Arc<Config>>>> = Lazy::new(|| RwLock::new(None));
 
 impl Config {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let bot_token = fetch_bot_token();
 
         let server_port = fetch_server_port();
@@ -130,10 +130,16 @@ fn fetch_file_domain() -> String {
 }
 
 fn fetch_telegram_api() -> String {
-    fetch_env_variable("TELEGRAM_API_URL").unwrap_or_else(|| {
+    let url = fetch_env_variable("TELEGRAM_API_URL").unwrap_or_else(|| {
         println!("TELEGRAM_API_URL environment variable is not set");
         "https://api.telegram.org".to_owned()
-    })
+    });
+
+    if url.ends_with('/') {
+        url
+    } else {
+        format!("{url}/")
+    }
 }
 
 fn fetch_pipe_path() -> String {
@@ -154,7 +160,7 @@ fn fetch_enable_files_route() -> bool {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::env;
 
     use super::*;
@@ -241,7 +247,7 @@ mod test {
 
         let api_url = fetch_telegram_api();
 
-        assert_eq!(api_url, "http://api.test.com");
+        assert_eq!(api_url, "http://api.test.com/");
 
         remove_env_variable("TELEGRAM_API_URL");
     }
@@ -253,7 +259,7 @@ mod test {
 
         let api_url = fetch_telegram_api();
 
-        assert_eq!(api_url, "https://api.telegram.org");
+        assert_eq!(api_url, "https://api.telegram.org/");
     }
 
     #[tokio::test]
@@ -327,7 +333,7 @@ mod test {
         assert_eq!(config.bot_token, Ok("test_token".to_string()));
         assert_eq!(config.server_port, 9090);
         assert_eq!(config.file_domain, "http://example.com/files/");
-        assert_eq!(config.telegram_api_url, "http://api.test.com");
+        assert_eq!(config.telegram_api_url, "http://api.test.com/");
         assert_eq!(config.pipe_path, "/custom/path.pipe");
         assert!(config.enable_files_route);
 
@@ -354,7 +360,7 @@ mod test {
         assert_eq!(config.bot_token.clone().expect(""), "test_token".to_string());
         assert_eq!(config.server_port, 9090);
         assert_eq!(config.file_domain, "http://example.com/files/");
-        assert_eq!(config.telegram_api_url, "http://api.test.com");
+        assert_eq!(config.telegram_api_url, "http://api.test.com/");
         assert_eq!(config.pipe_path, "/custom/path.pipe");
         assert!(config.enable_files_route);
 

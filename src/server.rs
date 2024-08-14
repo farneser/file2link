@@ -1,12 +1,12 @@
 use std::{convert::Infallible, fs::{self, File}, io::Read, path::PathBuf};
 
+use axum::response::IntoResponse;
 use axum::{
     body::Body,
     extract,
     response::{Html, Response},
     routing::{get, Router},
 };
-use axum::response::IntoResponse;
 use http::{header::CONTENT_TYPE, StatusCode};
 use log::{debug, error, info, warn};
 use mime_guess::from_path;

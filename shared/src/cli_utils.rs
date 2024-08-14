@@ -1,18 +1,13 @@
-use std::sync::Arc;
-
+use crate::chat_config;
+use crate::config::Config;
+use crate::utils::create_fifo;
 use log::{error, info, warn};
+use std::sync::Arc;
 use tokio::fs::OpenOptions;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::sync::Mutex;
 
-use crate::chat_config;
-use crate::chat_config::PermissionsConfig;
-use crate::cli::cli::create_fifo;
-use crate::config::Config;
-
-pub mod cli;
-
-pub async fn handle_cli(permissions: Arc<Mutex<PermissionsConfig>>) {
+pub async fn handle_cli(permissions: Arc<Mutex<chat_config::PermissionsConfig>>) {
     let path = Config::instance().await.pipe_path();
 
     match create_fifo(&path).await {
