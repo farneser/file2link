@@ -85,13 +85,14 @@ dependencies = [
 
 [[package]]
 name = "assert_cmd"
-version = "2.0.14"
+version = "2.0.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ed72493ac66d5804837f480ab3766c72bdfab91a65e565fc54fa9e42db0073a8"
+checksum = "dc1835b7f27878de8525dc71410b5a31cdcc5f230aed5ba5df968e09c201b23d"
 dependencies = [
  "anstyle",
  "bstr",
  "doc-comment",
+ "libc",
  "predicates",
  "predicates-core",
  "predicates-tree",
@@ -285,14 +286,16 @@ checksum = "b048fb63fd8b5923fc5aa7b340d8e156aec7ec02f0c78fa8a6ddc2613f6f71de"
 name = "bot"
 version = "0.1.0"
 dependencies = [
+ "assert_cmd",
  "cli",
- "core",
  "futures",
  "log",
  "nanoid",
  "pretty_env_logger",
  "regex",
  "reqwest",
+ "serial_test",
+ "shared",
  "teloxide",
  "tokio",
  "tokio-util",
@@ -368,10 +371,11 @@ name = "cli"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
- "core",
  "log",
  "nanoid",
  "pretty_env_logger",
+ "serial_test",
+ "shared",
  "structopt",
  "tokio",
 ]
@@ -395,20 +399,6 @@ name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
-
-[[package]]
-name = "core"
-version = "0.1.0"
-dependencies = [
- "dotenv",
- "libc",
- "log",
- "once_cell",
- "pretty_env_logger",
- "serde",
- "serde_json",
- "tokio",
-]
 
 [[package]]
 name = "core-foundation"
@@ -592,17 +582,14 @@ checksum = "9fc0510504f03c51ada170672ac806f1f105a88aa97a5281117e1ddc3368e51a"
 name = "file2link"
 version = "0.1.2"
 dependencies = [
- "assert_cmd",
  "axum 0.7.5",
  "bot",
  "cli",
- "core",
  "http 1.1.0",
  "log",
  "mime_guess",
  "pretty_env_logger",
- "serial_test",
- "structopt",
+ "shared",
  "tokio",
 ]
 
@@ -1757,9 +1744,9 @@ checksum = "f3cb5ba0dc43242ce17de99c180e96db90b235b8a9fdc9543c96d2209116bd9f"
 
 [[package]]
 name = "scc"
-version = "2.1.2"
+version = "2.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af947d0ca10a2f3e00c7ec1b515b7c83e5cb3fa62d4c11a64301d9eec54440e9"
+checksum = "79da19444d9da7a9a82b80ecf059eceba6d3129d84a8610fd25ff2364f255466"
 dependencies = [
  "sdd",
 ]
@@ -1791,9 +1778,9 @@ dependencies = [
 
 [[package]]
 name = "sdd"
-version = "0.2.0"
+version = "3.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b84345e4c9bd703274a082fb80caaa99b7612be48dfaa1dd9266577ec412309d"
+checksum = "0495e4577c672de8254beb68d01a9b62d0e8a13c099edecdbedccce3223cd29f"
 
 [[package]]
 name = "security-framework"
@@ -1939,6 +1926,22 @@ name = "sha1_smol"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
+
+[[package]]
+name = "shared"
+version = "0.1.0"
+dependencies = [
+ "assert_cmd",
+ "dotenv",
+ "libc",
+ "log",
+ "once_cell",
+ "pretty_env_logger",
+ "serde",
+ "serde_json",
+ "serial_test",
+ "tokio",
+]
 
 [[package]]
 name = "signal-hook-registry"

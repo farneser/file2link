@@ -5,7 +5,6 @@ use structopt::StructOpt;
 
 pub mod utils;
 
-#[allow(dead_code)]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     pretty_env_logger::init();
@@ -19,14 +18,13 @@ async fn main() -> Result<(), Box<dyn Error>> {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use std::env;
     use std::fs;
 
+    use crate::utils::send_command;
     use assert_cmd::Command;
     use nanoid::nanoid;
-
-    use super::*;
 
     async fn create_rnd_file() -> String {
         let path = format!("/tmp/f2l-test-temp-{}.pipe", nanoid!());

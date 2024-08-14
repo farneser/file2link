@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::bot::{TeloxideBot};
-use core::config::Config;
-use core::utils;
+use shared::config::Config;
+use shared::utils;
 use futures::{Stream, StreamExt};
 use log::{debug, error, info, warn};
 use nanoid::nanoid;

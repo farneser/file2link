@@ -12,8 +12,8 @@ use tokio::spawn;
 use tokio::sync::{mpsc, Mutex};
 
 mod server;
-use core::chat_config;
-use core::config;
+use shared::chat_config;
+use shared::config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
@@ -31,7 +31,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let permissions = Arc::new(Mutex::new(raw_permissions));
 
-    let bot = TeloxideBot::new(config::Config::instance().await, permissions.clone(), Arc::new(Mutex::new(Vec::new())));
+    let bot = match TeloxideBot::new(config::Config::instance().await, permissions.clone(), Arc::new(Mutex::new(Vec::new()))) {
+        Ok(bot) => bot,
+        Err(e) => {
+            error!("Failed to create bot: {}", e);
+
+            return Err("Failed to create bot".into());
+        }
+    };
 
     let bot_clone = Arc::new(bot);
 
@@ -95,7 +102,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let permissions = Arc::clone(&permissions);
 
         spawn(async move {
-            core::cli_utils::handle_cli(permissions).await;
+            shared::cli_utils::handle_cli(permissions).await;
         })
     };
 
