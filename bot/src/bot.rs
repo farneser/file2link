@@ -1,4 +1,3 @@
-use crate::{process_message, FileQueueType};
 use log::{debug, error, info};
 use reqwest::{Client, Url};
 use shared::chat_config::PermissionsConfig;
@@ -7,6 +6,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use teloxide::prelude::Message;
 use tokio::sync::Mutex;
+use crate::process_message::process_message;
+use crate::queue::FileQueueType;
 
 pub trait Bot {
     fn new(config: Arc<Config>, permissions: Arc<Mutex<PermissionsConfig>>, queue: FileQueueType) -> Result<Self, String> where Self: Sized;

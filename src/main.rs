@@ -1,9 +1,9 @@
-use bot::process_queue;
+use bot::queue::process_queue;
 use std::error::Error;
 use std::sync::Arc;
 
 use bot::bot::{Bot as BotTrait, TeloxideBot};
-use bot::FileQueueType;
+use bot::queue::FileQueueType;
 use cli::utils::send_command;
 use log::{error, info};
 use tokio::net::TcpListener;
